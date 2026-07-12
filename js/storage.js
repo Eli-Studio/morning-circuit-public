@@ -44,6 +44,7 @@ export function getDefaultState() {
       musicMode:          'spotify',  // 'spotify' | 'chimes'
       theme:              'night',    // 'night' (dark, default) | 'day' (light)
       lastBackupAt:       null,       // ISO timestamp of the last full JSON export
+      unavailableEquipmentIds: [],    // household equipment intentionally turned off
       // Per-user profiles. Internal ids (eli/christina) are stable; name, baseline
       // weight, progression style, per-exercise weight overrides, and disabled
       // exercises are all editable in Settings. See SPEC_User_Profiles.md.

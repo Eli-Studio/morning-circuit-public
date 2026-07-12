@@ -1426,6 +1426,12 @@ export function renderSettings(App) {
   const { settings } = App.state;
   const mode = settings.musicMode ?? 'spotify';
   const theme = settings.theme ?? 'night';
+  const unavailableEquipment = new Set(settings.unavailableEquipmentIds ?? []);
+  const equipmentRows = (App.data.equipment ?? []).map(item => `
+    <label class="ex-toggle">
+      <input type="checkbox" data-equipment-toggle value="${item.id}" ${unavailableEquipment.has(item.id) ? '' : 'checked'}>
+      <span>${escapeHtml(item.name)}</span>
+    </label>`).join('');
 
   return `
     <div class="page fade-in" style="padding-bottom:80px;">
@@ -1463,6 +1469,14 @@ export function renderSettings(App) {
       <div class="section-label" style="margin:20px 0 12px;">Profiles</div>
       ${renderProfileCard(App, 'eli')}
       ${renderProfileCard(App, 'christina')}
+
+      <div class="section-label" style="margin:20px 0 12px;">Available equipment</div>
+      <div class="card">
+        <div class="setting-row__desc" style="margin-bottom:12px;line-height:1.5;">
+          Turn off anything this household does not have. Exercises requiring unavailable equipment will be removed from routine choices.
+        </div>
+        <div class="ex-toggle-grid">${equipmentRows}</div>
+      </div>
 
       <div class="card">
         <div class="setting-row">

@@ -211,7 +211,8 @@ function navigate(screen) {
                 App.state.sessions.filter(s => s.users.includes('eli')).length, cycleNum,
                 App.state.cycleState?.eliExerciseWeights ?? {},
                 App.state.cycleState?.eliExerciseRepsTarget ?? {},
-                App.state.settings.profiles.eli);
+                App.state.settings.profiles.eli,
+                App.state.settings.unavailableEquipmentIds);
               if (style === 'pain_adaptive') {
                 eliPlan = adaptChristinaExercises(eliPlan, App.ui.symptomsByUser.eli);
                 eliPlan = annotateSymptomConflicts(eliPlan, App.ui.symptomsByUser.eli);
@@ -259,7 +260,8 @@ function navigate(screen) {
             if (tmpl) {
               let plan = buildExercisePlan(tmpl, App.data.exercises,
                 App.state.sessions.filter(s => s.users.includes('christina')).length, cycleNum,
-                {}, {}, App.state.settings.profiles.christina);
+                {}, {}, App.state.settings.profiles.christina,
+                App.state.settings.unavailableEquipmentIds);
               if (style === 'pain_adaptive') plan = adaptChristinaExercises(plan, App.ui.symptomsByUser.christina);
               const adjustment = adaptWorkoutToCapacity(plan, App.ui.symptomsByUser.christina, App.state.settings.profiles.christina);
               App.ui.christinaOriginalPlan = plan;
@@ -652,7 +654,8 @@ function setupListeners(screen) {
                 App.state.sessions.filter(s => s.users.includes('eli')).length, cycleNum,
                 App.state.cycleState?.eliExerciseWeights ?? {},
                 App.state.cycleState?.eliExerciseRepsTarget ?? {},
-                App.state.settings.profiles.eli);
+                App.state.settings.profiles.eli,
+                App.state.settings.unavailableEquipmentIds);
               App.ui.eliAnchors = type === 'heavy_weight'
                 ? getTemplateAnchors(tmpl, App.data.exercises, cycleNum) : [];
             }
@@ -681,7 +684,8 @@ function setupListeners(screen) {
             if (tmpl) {
               let plan = buildExercisePlan(tmpl, App.data.exercises,
                 App.state.sessions.filter(s => s.users.includes('christina')).length, cycleNum,
-                {}, {}, App.state.settings.profiles.christina);
+                {}, {}, App.state.settings.profiles.christina,
+                App.state.settings.unavailableEquipmentIds);
               if (App.ui.christinaSymptoms) plan = adaptChristinaExercises(plan, App.ui.christinaSymptoms);
               App.ui.christinaExercisePlan = annotateSymptomConflicts(plan, App.ui.christinaSymptoms);
             }
@@ -1066,6 +1070,13 @@ function setupListeners(screen) {
         });
       });
 
+      document.querySelectorAll('[data-equipment-toggle]').forEach(cb => cb.addEventListener('change', () => {
+        const unavailable = new Set(App.state.settings.unavailableEquipmentIds ?? []);
+        cb.checked ? unavailable.delete(cb.value) : unavailable.add(cb.value);
+        App.state.settings.unavailableEquipmentIds = [...unavailable];
+        saveState(App.state);
+      }));
+
       // Music mode toggle
       get('btn-theme-day')?.addEventListener('click', () => {
         App.state.settings.theme = 'day';
@@ -1268,7 +1279,7 @@ function buildWorkoutState() {
   if (users.includes('eli') && eliR?.id && eliR.id !== 'skip_rest') {
     const tmpl = App.data.routineTemplates.find(t => t.id === (eliR.templateId ?? eliR.id));
     if (tmpl) {
-      eliExercises = buildExercisePlan(tmpl, App.data.exercises, eliSessionCount, cycleNum, App.state.cycleState?.eliExerciseWeights ?? {}, App.state.cycleState?.eliExerciseRepsTarget ?? {}, App.state.settings.profiles.eli);
+      eliExercises = buildExercisePlan(tmpl, App.data.exercises, eliSessionCount, cycleNum, App.state.cycleState?.eliExerciseWeights ?? {}, App.state.cycleState?.eliExerciseRepsTarget ?? {}, App.state.settings.profiles.eli, App.state.settings.unavailableEquipmentIds);
       if (App.ui.capacityChoiceByUser.eli !== 'original') {
         eliExercises = adaptWorkoutToCapacity(eliExercises, App.ui.symptomsByUser.eli, App.state.settings.profiles.eli).plan;
       }
@@ -1279,7 +1290,7 @@ function buildWorkoutState() {
   if (users.includes('christina') && christR?.id && christR.id !== 'skip_rest') {
     const tmpl = App.data.routineTemplates.find(t => t.id === (christR.templateId ?? christR.id));
     if (tmpl) {
-      let plan = buildExercisePlan(tmpl, App.data.exercises, cSessionCount, cycleNum, {}, {}, App.state.settings.profiles.christina);
+      let plan = buildExercisePlan(tmpl, App.data.exercises, cSessionCount, cycleNum, {}, {}, App.state.settings.profiles.christina, App.state.settings.unavailableEquipmentIds);
       if (App.ui.capacityChoiceByUser.christina !== 'original') {
         plan = adaptWorkoutToCapacity(plan, App.ui.symptomsByUser.christina, App.state.settings.profiles.christina).plan;
       }
