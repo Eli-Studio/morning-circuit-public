@@ -643,6 +643,15 @@ function setupListeners(screen) {
         const recommended = App.ui[`${userId}RecommendedPlan`];
         const key = userId === 'eli' ? 'eliExercisePlan' : 'christinaExercisePlan';
         if (original && recommended) App.ui[key] = composeCapacityPlan(original, recommended, App.ui.capacityDimensionChoices[userId]);
+        const adjustment = App.ui[`${userId}CapacityAdjustment`];
+        const comparison = adjustment?.comparison ?? {};
+        const changedDimensions = [
+          comparison.originalCount !== comparison.recommendedCount,
+          Boolean(comparison.recommendedReps),
+          (comparison.loadFactor ?? 1) !== 1,
+          Boolean(comparison.restBonus)
+        ].filter(Boolean).length;
+        if (changedDimensions === 1) App.ui.capacityChoiceByUser[userId] = btn.dataset.capacityMode;
         refreshConflicts();
         navigate('routine_suggestion');
       }));
