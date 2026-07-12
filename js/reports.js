@@ -331,6 +331,37 @@ export function getChristinaStats(sessions) {
   };
 }
 
+// Conservative per-profile signals from recent completed workouts. These are
+// recommendations only and never mutate weights, reps, or saved progression.
+export function getProfileProgressionSignals(sessions, userId, profile) {
+  if (profile?.adaptationPreference === 'daily_capacity') return [];
+  const recent = sessions.filter(s => s.status === 'completed' && s.users?.includes(userId)).slice(-6);
+  const byExercise = new Map();
+  for (const session of recent) {
+    const checkin = session.profileCheckins?.[userId]
+      ?? (userId === 'eli' ? session.eliEndCheckin : null) ?? {};
+    const effort = checkin.effort ?? checkin.formFatigue ?? null;
+    const pain = checkin.jointPain ?? 'no';
+    if ((effort != null && effort > 3) || !['no', 'mild'].includes(pain)) continue;
+    for (const log of session.exerciseLogs?.[userId] ?? []) {
+      if (log.skipped || !(log.setLogs?.length)) continue;
+      const weightedSets = log.setLogs.filter(set => typeof set.weightUsed === 'string' && /kg/i.test(set.weightUsed));
+      if (!weightedSets.length) continue;
+      const row = byExercise.get(log.exerciseId) ?? { exerciseId: log.exerciseId, name: log.exerciseName, sessions: 0 };
+      row.sessions++;
+      byExercise.set(log.exerciseId, row);
+    }
+  }
+  const required = profile?.experienceLevel === 'experienced' ? 2 : 3;
+  return [...byExercise.values()].filter(row => row.sessions >= required).map(row => ({
+    ...row,
+    recommendation: profile?.experienceLevel === 'new'
+      ? 'Keep the load and consider one more clean rep.'
+      : 'Consider a small rep or weight increase if form remains comfortable.',
+    reason: `${row.sessions} recent manageable sessions without concerning joint pain.`
+  }));
+}
+
 // ---- Recovery-Adjusted Growth Readiness --------------------
 
 function scoreToStatus(value, greenThreshold, yellowThreshold, higherIsBetter = true) {

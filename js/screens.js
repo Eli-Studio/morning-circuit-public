@@ -11,6 +11,7 @@ import { getCycleDayNumber } from './cycles.js';
 import { formatDate, formatDateShort, escapeHtml, getTomorrowDate, formatTime, today, safeSpotifyUrl } from './utils.js';
 import { buildMonthCalendar, renderCalendarHTML, getEliStats, getChristinaStats,
          getEliStrengthData, getEliMuscleStimulus, getEliReadiness, getChristinaReadiness,
+         getProfileProgressionSignals,
          getChristinaMovementExposure, getChristinaSymptomCalendarData,
          renderStrengthProgressChart, renderMuscleMapChart, renderReadinessCard,
          renderChristinaMovementExposureMap, renderChristinaSymptomCalendarHTML,
@@ -1100,6 +1101,17 @@ export function renderReports(App) {
 
   const cSymptomCalendarData = getChristinaSymptomCalendarData(year, month, sessions);
   const cSymptomCalendarHTML = renderChristinaSymptomCalendarHTML(year, month, cSymptomCalendarData);
+  const progressionSignals = ['eli','christina'].map(userId => ({ userId,
+    rows: getProfileProgressionSignals(sessions, userId, state.settings.profiles[userId])
+  }));
+  const progressionHTML = progressionSignals.map(({userId, rows}) => `
+    <div class="card" style="margin-bottom:10px;">
+      <div class="setting-row__label">${userLabel(App, userId)}</div>
+      ${rows.length ? rows.slice(0,4).map(row => `<div class="setting-row" style="display:block;">
+        <div class="setting-row__label">${escapeHtml(row.name)}</div>
+        <div class="setting-row__desc">${escapeHtml(row.recommendation)} ${escapeHtml(row.reason)}</div>
+      </div>`).join('') : '<div class="setting-row__desc" style="margin-top:6px;">Keep training normally. A progression signal appears only after repeated manageable sessions.</div>'}
+    </div>`).join('');
 
   return `
     <div class="page fade-in" style="padding-bottom:80px;">
@@ -1162,6 +1174,10 @@ export function renderReports(App) {
       <div class="section-label" style="margin-top:20px;margin-bottom:8px;">Recovery-Adjusted Growth Readiness</div>
       <div id="card-christina-readiness" style="margin-bottom:4px;"></div>
 
+      <div class="divider"></div>
+      <div class="section-label" style="margin-bottom:12px;">Progression Recommendations</div>
+      <p class="text-muted text-sm" style="margin-bottom:10px;">Based on recent completed workouts, reported effort, and joint discomfort. Recommendations never apply automatically.</p>
+      ${progressionHTML}
       <div class="divider"></div>
       <div class="section-label" style="margin-bottom:12px;">Export</div>
       <button class="btn btn--secondary" id="btn-export-month-csv">📄 Export Month as CSV</button>

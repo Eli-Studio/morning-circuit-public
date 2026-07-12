@@ -75,7 +75,7 @@ export function getDefaultState() {
           typicalDuration:  '20_30',
           adaptationPreference: 'both',
           baselineWeightKg: 3,
-          progressionMode:  'fixed',          // never prompted to increase
+          progressionMode:  'cycle_review',
           disabledExerciseIds: [],
           weightOverridesKg: {}
         }
