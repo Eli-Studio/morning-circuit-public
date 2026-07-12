@@ -29,7 +29,10 @@ function symptomConflictBadge(ex) {
 // User display helpers — single source of truth for names/emoji
 const userName = (App, id) => App?.state?.settings?.profiles?.[id]?.displayName
   ?? (id === 'eli' ? 'User A' : 'User B');
-const userLabel = (App, id) => `${id === 'eli' ? '💪' : '💃'} ${escapeHtml(userName(App, id))}`;
+const userIcon = (App, id) => App?.state?.settings?.profiles?.[id]?.icon
+  ?? (id === 'eli' ? '🔵' : '🟣');
+const userLabel = (App, id) => `${userIcon(App, id)} ${escapeHtml(userName(App, id))}`;
+const PROFILE_ICONS = ['🔵', '🟣', '⭐', '⚡', '🌿', '🏔️', '🧘', '🏋️'];
 
 // ---- Shared Nav -------------------------------------------
 
@@ -165,12 +168,12 @@ export function renderHello(state, backupNudgeDismissed = false) {
 
       <div class="who-grid" style="margin-top:14px;flex:1;min-height:0;">
         <button class="who-card who-card--eli" data-who="eli">
-          <div class="who-card__emoji">💪</div>
+          <div class="who-card__emoji">${userIcon({state}, 'eli')}</div>
           <div class="who-card__name">${escapeHtml(settings.profiles.eli.displayName)}</div>
           <div class="who-card__next">${eliNextLabel}</div>
         </button>
         <button class="who-card who-card--christina" data-who="christina">
-          <div class="who-card__emoji">💃</div>
+          <div class="who-card__emoji">${userIcon({state}, 'christina')}</div>
           <div class="who-card__name">${escapeHtml(settings.profiles.christina.displayName)}</div>
           <div class="who-card__next">${cNextLabel}</div>
         </button>
@@ -289,13 +292,13 @@ export function renderLogToday(App) {
           style="flex:1;padding:14px 8px;border-radius:12px;cursor:pointer;
                  font-size:0.95rem;font-weight:400;line-height:1.3;
                  border:1px solid var(--border);background:var(--surface);color:var(--text-2);">
-          💪<br>${escapeHtml(userName(App, 'eli'))}
+          ${userIcon(App, 'eli')}<br>${escapeHtml(userName(App, 'eli'))}
         </button>
         <button data-log-who="christina" id="log-who-christina"
           style="flex:1;padding:14px 8px;border-radius:12px;cursor:pointer;
                  font-size:0.95rem;font-weight:400;line-height:1.3;
                  border:1px solid var(--border);background:var(--surface);color:var(--text-2);">
-          💃<br>${escapeHtml(userName(App, 'christina'))}
+          ${userIcon(App, 'christina')}<br>${escapeHtml(userName(App, 'christina'))}
         </button>
       </div>
 
@@ -877,9 +880,9 @@ export function renderEndCheckin(App) {
 
   const summaryLines = [
     includesEli && eliRoutineLabel
-      ? `<div>💪 <strong>${escapeHtml(userName(App, 'eli'))}:</strong> ${escapeHtml(eliRoutineLabel)}</div>` : '',
+      ? `<div>${userIcon(App, 'eli')} <strong>${escapeHtml(userName(App, 'eli'))}:</strong> ${escapeHtml(eliRoutineLabel)}</div>` : '',
     includesChristina && christinaRoutineLabel
-      ? `<div>💃 <strong>${escapeHtml(userName(App, 'christina'))}:</strong> ${escapeHtml(christinaRoutineLabel)}</div>` : '',
+      ? `<div>${userIcon(App, 'christina')} <strong>${escapeHtml(userName(App, 'christina'))}:</strong> ${escapeHtml(christinaRoutineLabel)}</div>` : '',
     durationMin
       ? `<div style="margin-top:6px;color:var(--text-2);">Duration: ${durationMin} min</div>` : ''
   ].filter(Boolean).join('');
@@ -999,10 +1002,10 @@ export function renderSessionSummary(App) {
   const calHTML = renderCalendarHTML(year, month, calData);
 
   const eliLine = snap.users?.includes('eli') && snap.eliRoutineId
-    ? `<div>💪 <strong>${escapeHtml(userName(App, 'eli'))}:</strong> ${escapeHtml(snap.eliRoutineId.replace(/eli_/g,'').replace(/_/g,' '))}</div>`
+    ? `<div>${userIcon(App, 'eli')} <strong>${escapeHtml(userName(App, 'eli'))}:</strong> ${escapeHtml(snap.eliRoutineId.replace(/eli_/g,'').replace(/_/g,' '))}</div>`
     : '';
   const cLine = snap.users?.includes('christina') && snap.christinaRoutineId
-    ? `<div>💃 <strong>${escapeHtml(userName(App, 'christina'))}:</strong> ${escapeHtml(snap.christinaRoutineId.replace(/christina_/g,'').replace(/_/g,' '))} (${snap.christinaAdaptationLevel ?? ''})</div>`
+    ? `<div>${userIcon(App, 'christina')} <strong>${escapeHtml(userName(App, 'christina'))}:</strong> ${escapeHtml(snap.christinaRoutineId.replace(/christina_/g,'').replace(/_/g,' '))} (${snap.christinaAdaptationLevel ?? ''})</div>`
     : '';
 
   const summaryCard = (eliLine || cLine || snap.meditation?.completed)
@@ -1294,6 +1297,14 @@ function renderProfileCard(App, userId) {
         <div style="flex:1;">
           <div class="input-label" style="margin-bottom:4px;">Profile name</div>
           <input class="input" id="profile-name-${userId}" value="${escapeHtml(p.displayName)}" style="max-width:240px;" aria-label="Profile name">
+        </div>
+      </div>
+      <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
+        <div class="setting-row__label">Profile icon</div>
+        <div class="mode-toggle" role="group" aria-label="${escapeHtml(p.displayName)} profile icon" style="flex-wrap:wrap;">
+          ${PROFILE_ICONS.map(icon => `<button class="mode-btn ${p.icon === icon ? 'active' : ''}"
+            data-profile-icon="${userId}" data-icon="${icon}" aria-label="Use ${icon}"
+            aria-pressed="${p.icon === icon}">${icon}</button>`).join('')}
         </div>
       </div>
       <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:10px;">

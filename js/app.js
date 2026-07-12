@@ -959,6 +959,14 @@ function setupListeners(screen) {
           if (name) { prof().displayName = name; saveState(App.state); showToast('Profile name saved', 'success'); }
         });
 
+        document.querySelectorAll(`[data-profile-icon="${uid}"]`).forEach(btn => {
+          btn.addEventListener('click', () => {
+            prof().icon = btn.dataset.icon;
+            saveState(App.state);
+            navigate('settings');
+          });
+        });
+
         document.querySelectorAll(`[data-baseline="${uid}"]`).forEach(btn => {
           btn.addEventListener('click', () => {
             const p = prof();

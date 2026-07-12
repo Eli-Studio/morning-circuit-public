@@ -50,6 +50,7 @@ export function getDefaultState() {
       profiles: {
         eli: {
           displayName:      'User A',
+          icon:             '🔵',
           trainingStyle:    'progressive',
           baselineWeightKg: 5,
           progressionMode:  'cycle_review',   // climbs via cycle review
@@ -63,6 +64,7 @@ export function getDefaultState() {
         },
         christina: {
           displayName:      'User B',
+          icon:             '🟣',
           trainingStyle:    'pain_adaptive',
           baselineWeightKg: 3,
           progressionMode:  'fixed',          // never prompted to increase
