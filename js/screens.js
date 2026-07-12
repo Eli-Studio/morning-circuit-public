@@ -413,23 +413,23 @@ export function renderSymptomCheck(App, userId = 'christina') {
 
       <div class="section-label">Energy level</div>
       <div class="pain-picker" data-capacity-group="energy">
-        <button class="pain-btn" data-energy="low">Low</button>
-        <button class="pain-btn selected" data-energy="medium">Medium</button>
-        <button class="pain-btn" data-energy="high">High</button>
+        <button type="button" class="pain-btn" data-energy="low">Low</button>
+        <button type="button" class="pain-btn selected" data-energy="medium">Medium</button>
+        <button type="button" class="pain-btn" data-energy="high">High</button>
       </div>
 
       <div class="section-label">Today's pain level</div>
       <div class="pain-picker" id="pain-picker">
-        <button class="pain-btn selected" data-value="low"><span class="pain-btn__icon">😊</span>Low</button>
-        <button class="pain-btn" data-value="medium"><span class="pain-btn__icon">😐</span>Medium</button>
-        <button class="pain-btn" data-value="high"><span class="pain-btn__icon">😔</span>High</button>
+        <button type="button" class="pain-btn selected" data-value="low"><span class="pain-btn__icon">😊</span>Low</button>
+        <button type="button" class="pain-btn" data-value="medium"><span class="pain-btn__icon">😐</span>Medium</button>
+        <button type="button" class="pain-btn" data-value="high"><span class="pain-btn__icon">😔</span>High</button>
       </div>
 
       <div class="section-label">Muscle soreness</div>
       <div class="pain-picker" data-capacity-group="soreness">
-        <button class="pain-btn selected" data-soreness="low">Low</button>
-        <button class="pain-btn" data-soreness="medium">Medium</button>
-        <button class="pain-btn" data-soreness="high">High</button>
+        <button type="button" class="pain-btn selected" data-soreness="low">Low</button>
+        <button type="button" class="pain-btn" data-soreness="medium">Medium</button>
+        <button type="button" class="pain-btn" data-soreness="high">High</button>
       </div>
 
 

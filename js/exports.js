@@ -23,7 +23,7 @@ export function exportFullBackupJSON(state) {
   return filename;
 }
 
-export function exportMonthCSV(sessions, missedDays, year, month) {
+export function exportMonthCSV(sessions, missedDays, year, month, profiles = {}) {
   const pad   = n => String(n+1).padStart(2,'0');
   const fname = `morning-circuit-${year}-${pad(month)}.csv`;
 
@@ -37,13 +37,15 @@ export function exportMonthCSV(sessions, missedDays, year, month) {
   });
 
   const q = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
-  const header = 'Date,Users,Type,EliRoutine,EliRoutineType,ChristinaRoutine,ChristinaAdaptation,Status,EliFatigue,EliJointPain,ChristinaPainDay,Meditation,Notes\n';
+  const nameA = profiles.eli?.displayName ?? 'User A';
+  const nameB = profiles.christina?.displayName ?? 'User B';
+  const header = ['Date','Users','Type',`${nameA} Routine`,`${nameA} Routine Type`,`${nameB} Routine`,`${nameB} Adaptation`,'Status',`${nameA} Effort`,`${nameA} Joint Discomfort`,`${nameB} Capacity`,'Meditation','Notes'].map(q).join(',') + '\n';
 
   let csv = header;
 
   for (const s of mSessions) {
     csv += [
-      s.date, s.users.join('+'), s.sessionType,
+      s.date, s.users.map(id => id === 'eli' ? nameA : id === 'christina' ? nameB : id).join('+'), s.sessionType,
       s.eliRoutineId ?? '', s.eliRoutineType ?? '',
       s.christinaRoutineId ?? '', s.christinaAdaptationLevel ?? '',
       s.status,
@@ -67,7 +69,7 @@ export function exportMonthCSV(sessions, missedDays, year, month) {
   return fname;
 }
 
-export function exportMonthMarkdown(sessions, missedDays, year, month) {
+export function exportMonthMarkdown(sessions, missedDays, year, month, profiles = {}) {
   const pad     = n => String(n+1).padStart(2,'0');
   const fname   = `morning-circuit-${year}-${pad(month)}.md`;
   const mName   = new Date(year, month, 1).toLocaleDateString('en-US',{ month:'long', year:'numeric' });
@@ -83,13 +85,15 @@ export function exportMonthMarkdown(sessions, missedDays, year, month) {
 
   const eliCount = mSessions.filter(s => s.users.includes('eli')).length;
   const cCount   = mSessions.filter(s => s.users.includes('christina')).length;
+  const nameA = profiles.eli?.displayName ?? 'User A';
+  const nameB = profiles.christina?.displayName ?? 'User B';
 
   let md = `# Morning Circuit — ${mName}\n\n`;
   md    += `*Exported ${formatDate(today())}*\n\n---\n\n`;
   md    += `## Summary\n\n`;
   md    += `- Total sessions: ${mSessions.length}\n`;
-  md    += `- Eli sessions: ${eliCount}\n`;
-  md    += `- Christina sessions: ${cCount}\n`;
+  md    += `- ${nameA} sessions: ${eliCount}\n`;
+  md    += `- ${nameB} sessions: ${cCount}\n`;
   md    += `- Missed / other days: ${mMissed.length}\n\n---\n\n`;
   md    += `## Session Log\n\n`;
 
@@ -102,16 +106,16 @@ export function exportMonthMarkdown(sessions, missedDays, year, month) {
     if (entry.kind === 'session') {
       const s = entry.data;
       md += `### ${formatDate(s.date)}\n\n`;
-      md += `**Users:** ${s.users.join(', ')}\n\n`;
+      md += `**Users:** ${s.users.map(id => id === 'eli' ? nameA : id === 'christina' ? nameB : id).join(', ')}\n\n`;
       if (s.users.includes('eli')) {
-        md += `**Eli:** ${s.eliRoutineId ?? 'No routine'} (${s.eliRoutineType ?? ''})\n`;
+        md += `**${nameA}:** ${s.eliRoutineId ?? 'No routine'} (${s.eliRoutineType ?? ''})\n`;
         if (s.eliEndCheckin) {
           md += `- Form fatigue: ${s.eliEndCheckin.formFatigue}/5\n`;
           md += `- Joint pain: ${s.eliEndCheckin.jointPain ?? 'not recorded'}\n`;
         }
       }
       if (s.users.includes('christina')) {
-        md += `**Christina:** ${s.christinaRoutineId ?? 'No routine'} (${s.christinaAdaptationLevel ?? ''})\n`;
+        md += `**${nameB}:** ${s.christinaRoutineId ?? 'No routine'} (${s.christinaAdaptationLevel ?? ''})\n`;
         if (s.christinaCheckin?.painDay) md += `- Pain day: ${s.christinaCheckin.painDay}\n`;
       }
       if (s.meditation?.completed) md += `**Meditation:** ${s.meditation.durationMinutes} minutes\n`;
@@ -130,7 +134,7 @@ export function exportMonthMarkdown(sessions, missedDays, year, month) {
   return fname;
 }
 
-export function exportCycleMarkdown(cycleState, sessions) {
+export function exportCycleMarkdown(cycleState, sessions, profiles = {}) {
   const fname = `morning-circuit-${cycleState.cycleId}.md`;
 
   const cycleSessions = sessions.filter(s =>
@@ -141,10 +145,12 @@ export function exportCycleMarkdown(cycleState, sessions) {
   const avgF    = fatigue.length
     ? (fatigue.reduce((a,b) => a+b,0) / fatigue.length).toFixed(1)
     : 'N/A';
+  const nameA = profiles.eli?.displayName ?? 'User A';
+  const nameB = profiles.christina?.displayName ?? 'User B';
 
   let md = `# Cycle Review — ${cycleState.cycleId} (Cycle ${cycleState.cycleNumber})\n\n`;
   md    += `**Period:** ${formatDate(cycleState.startDate)} → ${formatDate(cycleState.endDate)}\n\n---\n\n`;
-  md    += `## Eli\n\n`;
+  md    += `## ${nameA}\n\n`;
   md    += `| Routine | Sessions |\n|---|---|\n`;
   md    += `| Upper Push | ${cycleState.eliHeavyCounts.eli_upper_push} |\n`;
   md    += `| Lower Body | ${cycleState.eliHeavyCounts.eli_lower_body} |\n`;
@@ -154,7 +160,7 @@ export function exportCycleMarkdown(cycleState, sessions) {
   md    += `| Cardio     | ${cycleState.eliCardioCount}   |\n`;
   md    += `| Mobility   | ${cycleState.eliMobilityCount} |\n\n`;
   md    += `**Average form fatigue:** ${avgF}/5\n\n---\n\n`;
-  md    += `## Christina\n\n`;
+  md    += `## ${nameB}\n\n`;
   md    += `| Routine | Sessions |\n|---|---|\n`;
   const cr = cycleState.christinaRoutineCounts;
   md    += `| Gentle Upper | ${cr.christina_gentle_upper ?? 0} |\n`;

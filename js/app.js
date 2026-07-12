@@ -141,6 +141,8 @@ async function init() {
 // Navigation
 // ============================================================
 function navigate(screen) {
+  const sameScreen = App.ui.currentScreen === screen;
+  const previousScrollY = window.scrollY;
   App.ui.currentScreen = screen;
   const appEl = document.getElementById('app');
   let html = '';
@@ -371,8 +373,9 @@ function navigate(screen) {
   if (announce) announce.textContent = heading ? heading.textContent.trim() : screen.replace(/_/g, ' ');
   if (heading && !heading.hasAttribute('tabindex')) {
     heading.setAttribute('tabindex', '-1');
-    heading.focus({ preventScroll: false });
+    heading.focus({ preventScroll: sameScreen });
   }
+  if (sameScreen) requestAnimationFrame(() => window.scrollTo({ top: previousScrollY, behavior: 'instant' }));
 
   // Re-sync timers after every workout_runner render.
   // The guard above ensures workoutState is preserved, so restRemaining and
@@ -697,12 +700,19 @@ function setupListeners(screen) {
           if (id !== 'skip_rest') {
             const tmpl = App.data.routineTemplates.find(t => t.id === id);
             if (tmpl) {
-              App.ui.eliExercisePlan = buildExercisePlan(tmpl, App.data.exercises,
+              let plan = buildExercisePlan(tmpl, App.data.exercises,
                 App.state.sessions.filter(s => s.users.includes('eli')).length, cycleNum,
                 App.state.cycleState?.eliExerciseWeights ?? {},
                 App.state.cycleState?.eliExerciseRepsTarget ?? {},
                 App.state.settings.profiles.eli,
                 App.state.settings.unavailableEquipmentIds);
+              const adjustment = adaptWorkoutToCapacity(plan, App.ui.symptomsByUser.eli, App.state.settings.profiles.eli);
+              App.ui.eliOriginalPlan = plan;
+              App.ui.eliCapacityAdjustment = adjustment;
+              App.ui.eliRecommendedPlan = adjustment.plan;
+              App.ui.capacityChoiceByUser.eli = null;
+              plan = composeCapacityPlan(plan, adjustment.plan, App.ui.capacityDimensionChoices.eli ?? {});
+              App.ui.eliExercisePlan = annotateSymptomConflicts(plan, App.ui.symptomsByUser.eli);
               App.ui.eliAnchors = type === 'heavy_weight'
                 ? getTemplateAnchors(tmpl, App.data.exercises, cycleNum) : [];
             }
@@ -712,7 +722,7 @@ function setupListeners(screen) {
           }
           document.querySelectorAll('[data-user="eli"]').forEach(b => b.classList.remove('selected'));
           e.currentTarget.classList.add('selected');
-          showToast(`Eli: ${e.currentTarget.textContent.trim().replace('›','').trim()}`);
+          showToast(`${App.state.settings.profiles.eli.displayName}: ${e.currentTarget.textContent.trim().replace('›','').trim()}`);
         });
       });
 
@@ -733,8 +743,14 @@ function setupListeners(screen) {
                 App.state.sessions.filter(s => s.users.includes('christina')).length, cycleNum,
                 {}, {}, App.state.settings.profiles.christina,
                 App.state.settings.unavailableEquipmentIds);
-              if (App.ui.christinaSymptoms) plan = adaptChristinaExercises(plan, App.ui.christinaSymptoms);
-              App.ui.christinaExercisePlan = annotateSymptomConflicts(plan, App.ui.christinaSymptoms);
+              const capacity = App.ui.symptomsByUser.christina;
+              const adjustment = adaptWorkoutToCapacity(plan, capacity, App.state.settings.profiles.christina);
+              App.ui.christinaOriginalPlan = plan;
+              App.ui.christinaCapacityAdjustment = adjustment;
+              App.ui.christinaRecommendedPlan = adjustment.plan;
+              App.ui.capacityChoiceByUser.christina = null;
+              plan = composeCapacityPlan(plan, adjustment.plan, App.ui.capacityDimensionChoices.christina ?? {});
+              App.ui.christinaExercisePlan = annotateSymptomConflicts(plan, capacity);
             }
           } else {
             App.ui.christinaExercisePlan = [];
@@ -751,7 +767,7 @@ function setupListeners(screen) {
 
           document.querySelectorAll('[data-user="christina"]').forEach(b => b.classList.remove('selected','selected--indigo'));
           e.currentTarget.classList.add('selected--indigo');
-          showToast(`Christina: ${e.currentTarget.textContent.trim().replace('›','').trim()}`);
+          showToast(`${App.state.settings.profiles.christina.displayName}: ${e.currentTarget.textContent.trim().replace('›','').trim()}`);
         });
       });
 
@@ -1036,13 +1052,13 @@ function setupListeners(screen) {
         navigate('reports');
       });
       get('btn-export-month-csv')?.addEventListener('click', () => {
-        showToast(`Exported ${exportMonthCSV(App.state.sessions, App.state.missedDays, App.ui.calYear, App.ui.calMonth)}`, 'success');
+        showToast(`Exported ${exportMonthCSV(App.state.sessions, App.state.missedDays, App.ui.calYear, App.ui.calMonth, App.state.settings.profiles)}`, 'success');
       });
       get('btn-export-month-md')?.addEventListener('click', () => {
-        showToast(`Exported ${exportMonthMarkdown(App.state.sessions, App.state.missedDays, App.ui.calYear, App.ui.calMonth)}`, 'success');
+        showToast(`Exported ${exportMonthMarkdown(App.state.sessions, App.state.missedDays, App.ui.calYear, App.ui.calMonth, App.state.settings.profiles)}`, 'success');
       });
       get('btn-export-cycle')?.addEventListener('click', () => {
-        showToast(`Exported ${exportCycleMarkdown(App.state.cycleState, App.state.sessions)}`, 'success');
+        showToast(`Exported ${exportCycleMarkdown(App.state.cycleState, App.state.sessions, App.state.settings.profiles)}`, 'success');
       });
       get('btn-export-json')?.addEventListener('click', () => {
         markBackedUp();

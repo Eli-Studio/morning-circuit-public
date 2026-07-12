@@ -394,6 +394,12 @@ textarea.input { height: auto; min-height: 80px; padding: 12px 16px; resize: ver
 .pain-btn.selected[data-value="low"]    { border-color: var(--eli);    color: var(--eli);    background: var(--eli-glow); }
 .pain-btn.selected[data-value="medium"] { border-color: var(--yellow); color: var(--yellow); background: color-mix(in srgb, var(--yellow) 8%, var(--surface)); }
 .pain-btn.selected[data-value="high"]   { border-color: var(--red);    color: var(--red);    background: color-mix(in srgb, var(--red)    8%, var(--surface)); }
+.pain-btn.selected[data-energy="low"],
+.pain-btn.selected[data-soreness="high"] { border-color: var(--red); color: var(--red); background: color-mix(in srgb, var(--red) 8%, var(--surface)); }
+.pain-btn.selected[data-energy="medium"],
+.pain-btn.selected[data-soreness="medium"] { border-color: var(--yellow); color: var(--yellow); background: color-mix(in srgb, var(--yellow) 8%, var(--surface)); }
+.pain-btn.selected[data-energy="high"],
+.pain-btn.selected[data-soreness="low"] { border-color: var(--eli); color: var(--eli); background: var(--eli-glow); }
 
 /* --- Symptom Cluster Buttons ----------------------------- */
 .symptom-clusters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: var(--gap); }
