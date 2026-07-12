@@ -2,7 +2,7 @@
 // config.js — App constants and configuration
 // ============================================================
 
-export const APP_VERSION = '0.4.22';
+export const APP_VERSION = '0.5.0';
 export const STORAGE_KEY = 'morningCircuit';
 export const CYCLE_LENGTH_DAYS = 28;
 

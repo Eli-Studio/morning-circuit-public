@@ -801,9 +801,9 @@ function renderWeightStepper(ex, user) {
   if (!ex.weighted || ex.currentWeightKg === null || ex.currentWeightKg === undefined) return '';
   const label = weightLabel(ex);
   return `
-    <div class="weight-stepper">
+    <div class="weight-stepper practice-stepper">
       <button class="weight-btn" data-weight-adj="${user}" data-dir="down" aria-label="Decrease weight">−</button>
-      <span class="weight-display" id="${user}-weight-display">${escapeHtml(label)}</span>
+      <span class="weight-display"><small>Weight</small><strong id="${user}-weight-display">${escapeHtml(label)}</strong></span>
       <button class="weight-btn" data-weight-adj="${user}" data-dir="up" aria-label="Increase weight">+</button>
     </div>
   `;
@@ -812,9 +812,9 @@ function renderWeightStepper(ex, user) {
 function renderRepsStepper(ex, user) {
   if (ex.durationSeconds || ex.currentReps == null) return '';
   return `
-    <div class="weight-stepper" style="margin-top:4px;">
+    <div class="weight-stepper practice-stepper">
       <button class="weight-btn" data-reps-adj="${user}" data-dir="down" aria-label="Decrease reps">−</button>
-      <span class="weight-display" id="${user}-reps-display">${ex.currentReps} reps</span>
+      <span class="weight-display"><small>Repetitions</small><strong id="${user}-reps-display">${ex.currentReps} reps</strong></span>
       <button class="weight-btn" data-reps-adj="${user}" data-dir="up" aria-label="Increase reps">+</button>
     </div>
   `;

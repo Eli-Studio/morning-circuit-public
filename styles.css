@@ -632,7 +632,7 @@ body {
 .btn--danger { background: var(--status-critical-surface); color: var(--status-critical); border: 1px solid var(--status-critical-surface); }
 .btn--green { background: var(--status-positive-surface); color: var(--status-positive); border: 1px solid var(--status-positive-surface); }
 
-.btn--sm { min-height: 40px; padding: 8px 16px; font-size: 0.875rem; border-radius: var(--radius-sm); }
+.btn--sm { min-width: 44px; min-height: 44px; padding: 8px 16px; font-size: 0.875rem; border-radius: var(--radius-sm); }
 
 .btn-row { display: flex; gap: 8px; }
 .btn-row .btn { flex: 1; }
@@ -668,6 +668,9 @@ body {
 .symptom-cluster-btn:focus-visible { outline-color: var(--movement-focus); }
 /* Inputs override the base `outline:none` when focused via keyboard. */
 .input:focus-visible { outline: 3px solid var(--movement-focus); outline-offset: 2px; }
+/* Route headings receive temporary programmatic focus for screen-reader
+   orientation; they are not interactive controls and should not look selected. */
+.page-title[tabindex="-1"]:focus { outline: none; }
 /* Remove the legacy always-on removal so it can't suppress the ring. */
 @media (forced-colors: active) { :focus-visible { outline: 3px solid CanvasText; } }
 
@@ -789,32 +792,36 @@ textarea.input { height: auto; min-height: 80px; padding: 12px 16px; resize: ver
 /* --- Workout Screen (Single User) ------------------------ */
 .workout-screen {
   display: flex; flex-direction: column;
-  height: 100dvh; background: var(--bg);
+  height: 100dvh; background-color: var(--bg); background-image: var(--movement-texture-shell);
 }
 .workout-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px var(--page-pad); border-bottom: 1px solid var(--border);
+  min-height: 66px; padding: 8px var(--page-pad);
+  border-bottom: 1px solid var(--movement-brass-500);
+  box-shadow: inset 0 -3px 0 var(--bg);
   flex-shrink: 0;
 }
 .workout-header .four-week-cycle--compact { margin-right: 10px; }
 .workout-header__label {
-  font-size: 0.75rem; font-weight: 700;
+  font-size: 0.72rem; font-weight: 700;
   letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2);
   flex: 1;
 }
 
 .workout-body {
-  flex: 1; overflow-y: auto; padding: var(--page-pad);
+  flex: 1; overflow-y: auto; padding: clamp(14px, 3vw, 28px) var(--page-pad);
   display: flex; flex-direction: column; gap: 16px;
   -webkit-overflow-scrolling: touch;
 }
 .workout-footer {
-  padding: 14px var(--page-pad);
+  padding: 12px var(--page-pad);
   padding-bottom: calc(14px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
   display: flex; flex-direction: column; gap: 8px;
-  flex-shrink: 0; background: var(--bg);
+  flex-shrink: 0; background-color: var(--bg); background-image: var(--movement-texture-shell);
+  box-shadow: 0 -8px 18px rgb(0 0 0 / 16%);
 }
+.workout-footer .btn:first-child { min-height: 62px; font-size: 1rem; }
 
 /* --- Paired Side-by-Side --------------------------------- */
 .paired-workout {
@@ -825,9 +832,9 @@ textarea.input { height: auto; min-height: 80px; padding: 12px 16px; resize: ver
 
 .paired-panel {
   display: flex; flex-direction: column;
-  overflow-y: auto; padding: 14px 12px;
+  overflow-y: auto; padding: 16px clamp(10px, 2vw, 18px);
   -webkit-overflow-scrolling: touch;
-  border-top: 3px solid transparent;
+  border-top: 2px solid transparent;
   position: relative;
 }
 .paired-panel + .paired-panel { border-left: 1px solid var(--border); }
@@ -844,7 +851,7 @@ textarea.input { height: auto; min-height: 80px; padding: 12px 16px; resize: ver
 .paired-panel--christina .paired-panel__user { color: var(--profile-b-accent); }
 
 .paired-panel__exercise {
-  font-size: 1rem; font-weight: 700; line-height: 1.25;
+  font: 400 clamp(1.05rem, 2.3vw, 1.4rem)/1.18 var(--font-display);
   margin-bottom: 6px; min-height: 2.5em;
 }
 
@@ -855,10 +862,10 @@ textarea.input { height: auto; min-height: 80px; padding: 12px 16px; resize: ver
 .paired-set-dots { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
 
 .paired-set-dot {
-  width: 28px; height: 28px; border-radius: 50%;
+  width: 32px; height: 32px; border-radius: var(--radius-sm);
   display: flex; align-items: center; justify-content: center;
   font-size: 0.7rem; font-weight: 700;
-  border: 2px solid var(--border); color: var(--text-3);
+  border: 1px solid var(--border-2); color: var(--text-2);
   background: var(--surface-2);
 }
 .paired-panel--eli .paired-set-dot.done { background: var(--profile-a-accent); border-color: var(--profile-a-accent); color: #fff; }
@@ -876,15 +883,15 @@ textarea.input { height: auto; min-height: 80px; padding: 12px 16px; resize: ver
 
 .paired-done-badge {
   font-size: 0.75rem; font-weight: 700;
-  padding: 6px 10px; border-radius: 100px;
+  padding: 7px 10px; border-radius: var(--radius-sm); border: 1px solid currentColor;
   margin-bottom: 8px; display: inline-block;
 }
 .paired-panel--eli .paired-done-badge { background: var(--profile-a-surface); color: var(--profile-a-accent-strong); }
 .paired-panel--christina .paired-done-badge { background: var(--profile-b-surface); color: var(--profile-b-accent-strong); }
 
 .paired-complete-btn {
-  min-height: 52px; width: 100%;
-  border-radius: var(--radius-sm); border: none;
+  min-height: 58px; width: 100%;
+  border-radius: var(--radius-sm); border: 1px solid color-mix(in srgb, var(--movement-brass-500) 45%, transparent);
   font-family: var(--font); font-size: 0.85rem; font-weight: 700;
   cursor: pointer; margin-top: auto; padding: 0 10px;
   transition: opacity 0.1s, transform 0.1s;
@@ -899,18 +906,21 @@ textarea.input { height: auto; min-height: 80px; padding: 12px 16px; resize: ver
   margin-top: 6px; width: 100%;
   background: transparent; border: none; color: var(--text-3);
   font-family: var(--font); font-size: 0.72rem; font-weight: 600;
-  padding: 6px; cursor: pointer; border-radius: var(--radius-sm);
+  min-height: 44px; padding: 8px; cursor: pointer; border-radius: var(--radius-sm);
   -webkit-tap-highlight-color: transparent;
 }
 .paired-skip-btn:active { color: var(--text-2); }
 
 /* --- Exercise Card (single user) ------------------------- */
 .exercise-card {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); padding: 24px 20px 20px;
+  width: 100%; max-width: 720px; margin: auto;
+  background-color: var(--surface); background-image: var(--movement-texture-shell);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius); padding: clamp(20px, 4vw, 34px);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 3%), 0 8px 24px rgb(0 0 0 / 18%);
 }
-.exercise-card--eli       { border-top: 3px solid var(--profile-a-accent); }
-.exercise-card--christina { border-top: 3px solid var(--profile-b-accent); }
+.exercise-card--eli       { border-top: 2px solid var(--profile-a-accent); }
+.exercise-card--christina { border-top: 2px solid var(--profile-b-accent); }
 
 .exercise-card__meta {
   font-size: 0.68rem; font-weight: 700;
@@ -918,15 +928,15 @@ textarea.input { height: auto; min-height: 80px; padding: 12px 16px; resize: ver
   color: var(--text-3); margin-bottom: 8px;
 }
 .exercise-card__name {
-  font-size: 1.6rem; font-weight: 800;
-  letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 10px;
+  max-width: 18ch; font: 400 clamp(1.9rem, 7vw, 2.8rem)/1.04 var(--font-display);
+  letter-spacing: -0.025em; margin-bottom: 12px;
 }
 .exercise-card__targets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
 
 /* --- Tags ------------------------------------------------ */
 .tag {
   display: inline-flex; align-items: center;
-  padding: 3px 10px; border-radius: 100px;
+  padding: 5px 9px; border-radius: var(--radius-sm);
   font-size: 0.75rem; font-weight: 600;
   background: var(--surface-2); color: var(--text-2);
   border: 1px solid var(--border);
@@ -940,10 +950,10 @@ textarea.input { height: auto; min-height: 80px; padding: 12px 16px; resize: ver
 /* --- Set Tracker ----------------------------------------- */
 .set-tracker { display: flex; gap: 8px; margin-bottom: 16px; }
 .set-dot {
-  width: 36px; height: 36px; border-radius: 50%;
+  width: 44px; height: 44px; border-radius: var(--radius-sm);
   display: flex; align-items: center; justify-content: center;
   font-size: 0.8rem; font-weight: 700;
-  border: 2px solid var(--border); color: var(--text-3);
+  border: 1px solid var(--border-2); color: var(--text-2);
   background: var(--surface-2); transition: all 0.2s;
 }
 .set-dot.done { background: var(--profile-a-accent); border-color: var(--profile-a-accent); color: #fff; }
@@ -952,14 +962,14 @@ textarea.input { height: auto; min-height: 80px; padding: 12px 16px; resize: ver
 .set-dot--christina.current { border-color: var(--profile-b-accent); color: var(--profile-b-accent); }
 
 /* --- Form Cues ------------------------------------------- */
-.form-cues { margin-top: 12px; }
+.form-cues { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
 .form-cues__title {
   font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
   letter-spacing: 0.1em; color: var(--text-3); margin-bottom: 8px;
 }
 .form-cue {
-  font-size: 0.8rem; color: var(--text-2);
-  padding-left: 12px; position: relative; line-height: 1.4; margin-bottom: 4px;
+  font-size: .9rem; color: var(--text-2);
+  padding-left: 14px; position: relative; line-height: 1.45; margin-bottom: 6px;
 }
 .form-cue::before { content: '·'; position: absolute; left: 0; color: var(--profile-a-accent); font-weight: 700; }
 .form-cue--christina::before { color: var(--profile-b-accent); }
@@ -1098,11 +1108,20 @@ textarea.input { height: auto; min-height: 80px; padding: 12px 16px; resize: ver
 }
 .calendar__month { font-size: 0.925rem; font-weight: 700; }
 .btn-icon {
-  width: 36px; height: 36px; border-radius: 50%;
+  width: 44px; height: 44px; border-radius: 50%;
   background: var(--surface-2); border: 1px solid var(--border);
   color: var(--text-2); font-size: 1.1rem; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: all 0.15s;
+}
+
+@media (max-width: 360px) {
+  .four-week-cycle--large { grid-template-columns: 1fr; }
+  .four-week-cycle--large .four-week-cycle__graphic {
+    width: min(220px, 100%); grid-row: auto;
+  }
+  .four-week-cycle--large .four-week-cycle__copy { align-self: auto; }
+  .four-week-cycle__legend { grid-template-columns: 1fr 1fr; }
 }
 .btn-icon:active { opacity: 0.6; }
 .calendar__grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border); }
@@ -1303,34 +1322,69 @@ textarea.input { height: auto; min-height: 80px; padding: 12px 16px; resize: ver
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  margin: 10px 0;
+  gap: 10px;
+  margin: 12px 0;
 }
 .weight-btn {
-  width: 44px; height: 44px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  width: 58px; height: 58px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-2);
+  background: var(--surface-2);
   color: var(--text);
-  font-size: 1.25rem;
+  font: 400 1.6rem/1 var(--font-display);
   cursor: pointer;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%), var(--shadow-control);
 }
 .weight-display {
-  font-size: 1rem;
-  font-weight: 700;
-  min-width: 100px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-width: min(42vw, 190px); min-height: 58px;
   text-align: center;
   color: var(--text);
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
 }
+.weight-display small { font-size: .58rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--movement-brass-500); }
+.weight-display strong { font: 400 clamp(1.15rem, 4.5vw, 1.5rem)/1.05 var(--font-display); }
 
 /* Anchor badge */
 .anchor-badge { font-size: 0.75rem; margin-left: 6px; opacity: 0.7; }
 .anchor-badge--runner {
-  display: inline-block;
+  display: inline-flex; align-items: center; gap: 4px;
   font-size: 0.7rem;
   color: var(--status-caution);
   margin-bottom: 4px;
   font-weight: 600;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .weight-btn:hover,
+  .paired-complete-btn:hover,
+  .paired-skip-btn:hover {
+    transform: translateY(-2px);
+    border-color: var(--movement-brass-500);
+    background-color: color-mix(in srgb, var(--surface-2) 90%, var(--movement-brass-500));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 9%), 0 5px 9px rgb(0 0 0 / 22%);
+  }
+}
+
+@media (min-width: 680px) {
+  .workout-footer { flex-direction: row; align-items: center; }
+  .workout-footer .btn:first-child { flex: 1; }
+  .workout-footer .btn:last-child { width: auto; min-width: 150px; margin-top: 0; }
+}
+
+@media (max-width: 430px) {
+  .workout-header { padding-inline: 12px; }
+  .workout-header .four-week-cycle--compact { margin-right: 7px; }
+  .workout-header__label { font-size: .62rem; letter-spacing: .055em; }
+  .workout-body { padding: 12px; }
+  .exercise-card { padding: 20px 16px; }
+  .exercise-card__name { font-size: 2rem; }
+  .weight-btn { width: 54px; height: 54px; }
+  .weight-display { min-height: 54px; min-width: 132px; }
+  .paired-panel .weight-btn { width: 44px; height: 44px; }
+  .paired-panel .weight-display { min-width: 62px; min-height: 44px; }
+  .paired-panel .weight-display strong { font-size: .92rem; }
+  .paired-panel .weight-display small { font-size: .46rem; }
 }
 
 /* Anchor line on suggestion screen */
@@ -1390,6 +1444,7 @@ textarea.input { height: auto; min-height: 80px; padding: 12px 16px; resize: ver
 }
 .mode-btn {
   flex: 1;
+  min-width: 44px; min-height: 44px;
   padding: 10px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
