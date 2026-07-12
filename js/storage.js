@@ -51,7 +51,11 @@ export function getDefaultState() {
         eli: {
           displayName:      'User A',
           icon:             '🔵',
-          trainingStyle:    'progressive',
+          primaryGoal:      'general_fitness',
+          secondaryGoals:   [],
+          experienceLevel:  'some',
+          typicalDuration:  '20_30',
+          adaptationPreference: 'both',
           baselineWeightKg: 5,
           progressionMode:  'cycle_review',   // climbs via cycle review
           disabledExerciseIds: [],
@@ -65,7 +69,11 @@ export function getDefaultState() {
         christina: {
           displayName:      'User B',
           icon:             '🟣',
-          trainingStyle:    'pain_adaptive',
+          primaryGoal:      'general_fitness',
+          secondaryGoals:   [],
+          experienceLevel:  'some',
+          typicalDuration:  '20_30',
+          adaptationPreference: 'both',
           baselineWeightKg: 3,
           progressionMode:  'fixed',          // never prompted to increase
           disabledExerciseIds: [],
@@ -141,13 +149,17 @@ function mergeProfiles(defProfiles, savedProfiles) {
   for (const id of Object.keys(defProfiles)) {
     const dp = defProfiles[id];
     const sp = saved[id] ?? {};
+    const legacyAdaptation = sp.trainingStyle === 'progressive' ? 'progress_when_ready'
+      : sp.trainingStyle === 'pain_adaptive' ? 'daily_capacity' : null;
     out[id] = {
       ...dp,
       ...sp,
       weightOverridesKg: { ...(dp.weightOverridesKg ?? {}), ...(sp.weightOverridesKg ?? {}) },
       disabledExerciseIds: Array.isArray(sp.disabledExerciseIds)
         ? sp.disabledExerciseIds
-        : (dp.disabledExerciseIds ?? [])
+        : (dp.disabledExerciseIds ?? []),
+      secondaryGoals: Array.isArray(sp.secondaryGoals) ? sp.secondaryGoals : (dp.secondaryGoals ?? []),
+      adaptationPreference: sp.adaptationPreference ?? legacyAdaptation ?? dp.adaptationPreference
     };
   }
   // Preserve any extra profiles a save might carry (future-proofing).

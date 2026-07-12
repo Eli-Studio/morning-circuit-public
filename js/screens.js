@@ -33,6 +33,22 @@ const userIcon = (App, id) => App?.state?.settings?.profiles?.[id]?.icon
   ?? (id === 'eli' ? '🔵' : '🟣');
 const userLabel = (App, id) => `${userIcon(App, id)} ${escapeHtml(userName(App, id))}`;
 const PROFILE_ICONS = ['🔵', '🟣', '⭐', '⚡', '🌿', '🏔️', '🧘', '🏋️'];
+const TRAINING_GOALS = [
+  ['build_strength', 'Build strength'], ['improve_mobility', 'Improve mobility'],
+  ['maintain_consistency', 'Maintain consistency'], ['return_after_break', 'Return after a break'],
+  ['general_fitness', 'Improve general fitness']
+];
+const EXPERIENCE_LEVELS = [
+  ['new', 'New to exercise'], ['some', 'Some experience'], ['experienced', 'Experienced']
+];
+const DURATION_OPTIONS = [
+  ['10_15', '10–15 min'], ['20_30', '20–30 min'], ['30_45', '30–45 min'], ['45_plus', '45+ min']
+];
+const ADAPTATION_OPTIONS = [
+  ['progress_when_ready', 'Progress weights when appropriate'],
+  ['daily_capacity', 'Adapt based on daily capacity'],
+  ['both', 'Use both']
+];
 
 // ---- Shared Nav -------------------------------------------
 
@@ -330,11 +346,32 @@ export function renderSymptomCheck(App, userId = 'christina') {
       <h1 class="page-title" style="margin-top:6px;">How are you feeling?</h1>
       <p class="page-subtitle" style="margin-bottom:28px;">Quick check — this shapes today's routine.</p>
 
+      <div class="section-label">Energy level</div>
+      <div class="pain-picker" data-capacity-group="energy">
+        <button class="pain-btn" data-energy="low">Low</button>
+        <button class="pain-btn selected" data-energy="medium">Medium</button>
+        <button class="pain-btn" data-energy="high">High</button>
+      </div>
+
       <div class="section-label">Today's pain level</div>
       <div class="pain-picker" id="pain-picker">
         <button class="pain-btn selected" data-value="low"><span class="pain-btn__icon">😊</span>Low</button>
         <button class="pain-btn" data-value="medium"><span class="pain-btn__icon">😐</span>Medium</button>
         <button class="pain-btn" data-value="high"><span class="pain-btn__icon">😔</span>High</button>
+      </div>
+
+      <div class="section-label">Muscle soreness</div>
+      <div class="pain-picker" data-capacity-group="soreness">
+        <button class="pain-btn selected" data-soreness="low">Low</button>
+        <button class="pain-btn" data-soreness="medium">Medium</button>
+        <button class="pain-btn" data-soreness="high">High</button>
+      </div>
+
+      <div class="input-group">
+        <label class="input-label" for="available-time">Available time today</label>
+        <select class="input" id="available-time">
+          ${DURATION_OPTIONS.map(([value,label]) => `<option value="${value}" ${App.state.settings.profiles[userId].typicalDuration===value?'selected':''}>${label}</option>`).join('')}
+        </select>
       </div>
 
       <div class="section-label" style="margin-top:4px;">
@@ -350,6 +387,7 @@ export function renderSymptomCheck(App, userId = 'christina') {
       </div>
 
       <button class="btn btn--christina" id="btn-symptoms-done" style="margin-top:8px;">Continue</button>
+      <button class="btn btn--ghost" id="btn-capacity-skip">Use typical capacity</button>
     </div>
   `;
 }
@@ -387,6 +425,20 @@ function buildExerciseListHTML(exercises, user) {
       }).join('')}
     </div>
   `;
+}
+
+function capacityAdjustmentHTML(adjustment, userId) {
+  if (!adjustment?.changed) return '';
+  const explanation = adjustment.reasons?.length
+    ? adjustment.reasons.join('; ') : 'today’s capacity suggests a lighter plan';
+  return `<div class="symptom-flag-summary" style="margin-bottom:10px;">
+    <strong>Recommended adjustment:</strong> ${escapeHtml(explanation)}.
+    You can swap individual exercises below or use the original plan unchanged.
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+      <button class="btn btn--sm btn--secondary" id="btn-${userId}-recommended">Use recommendation</button>
+      <button class="btn btn--sm btn--ghost" id="btn-${userId}-original">Use original plan</button>
+    </div>
+  </div>`;
 }
 
 function buildEquipmentSummaryHTML(eliExercisePlan, christinaExercisePlan, allEquipment) {
@@ -434,6 +486,7 @@ export function renderRoutineSuggestion(App) {
         </div>
         <div class="suggestion-card__routine">${escapeHtml(eliSuggestion.primary.label)}</div>
         <div class="suggestion-card__reason">${escapeHtml(eliSuggestion.primary.reason)}</div>
+        ${capacityAdjustmentHTML(ui.eliCapacityAdjustment, 'eli')}
         ${anchorLine}
         ${buildExerciseListHTML(eliExercisePlan, 'eli')}
         <p class="text-muted text-sm" style="margin-top:4px;">Tap an exercise to swap it.</p>
@@ -462,6 +515,7 @@ export function renderRoutineSuggestion(App) {
         </div>
         <div class="suggestion-card__routine">${escapeHtml(christinaSuggestion.primary.label)}</div>
         <div class="suggestion-card__reason">${escapeHtml(christinaSuggestion.primary.reason)}</div>
+        ${capacityAdjustmentHTML(ui.christinaCapacityAdjustment, 'christina')}
         ${(() => {
           const n = (christinaExercisePlan ?? []).filter(e => e.symptomConflicts?.length).length;
           return n ? `<div class="symptom-flag-summary">⚠ ${n} exercise${n>1?'s':''} flagged for today's symptoms — review below, do or swap as feels right.</div>` : '';
@@ -893,13 +947,13 @@ export function renderEndCheckin(App) {
     </div>
   ` : '';
 
-  const eliSection = includesEli ? `
+  const profileCheckinSection = userId => `
     <div class="reports-section">
-      <div class="section-label" style="margin-bottom:12px;">${userLabel(App, 'eli')} — Form Check</div>
-      <div class="section-label" style="margin-bottom:8px;">Form fatigue this session</div>
-      <div class="fatigue-scale" id="fatigue-scale">
+      <div class="section-label" style="margin-bottom:12px;">${userLabel(App, userId)} — Check-In</div>
+      <div class="section-label" style="margin-bottom:8px;">How hard did this session feel?</div>
+      <div class="fatigue-scale">
         ${FATIGUE_SCALE.map(f => `
-          <button class="fatigue-btn" data-fatigue="${f.value}">
+          <button class="fatigue-btn" data-effort-user="${userId}" data-value="${f.value}">
             <span class="fatigue-btn__num">${f.value}</span>
             <span class="fatigue-btn__text">
               <span class="fatigue-btn__label">${f.label}</span>
@@ -911,34 +965,18 @@ export function renderEndCheckin(App) {
       <div class="section-label" style="margin-top:20px;margin-bottom:8px;">Joint pain?</div>
       <div class="pain-options">
         ${JOINT_PAIN_OPTIONS.map(opt => `
-          <button class="pain-option-btn" data-pain="${opt.value}">${opt.label}</button>
+          <button class="pain-option-btn" data-joint-pain-user="${userId}" data-value="${opt.value}">${opt.label}</button>
         `).join('')}
       </div>
-      <div id="pain-locations-wrap" style="display:none;">
-        <div class="section-label" style="margin-top:10px;margin-bottom:8px;">Where?</div>
-        <div class="location-chips" id="pain-locations">
-          ${JOINT_PAIN_LOCATIONS.map(loc => `
-            <button class="chip" data-location="${loc}">${loc}</button>
-          `).join('')}
-        </div>
-      </div>
       <div class="input-group" style="margin-top:16px;">
-        <label class="input-label" for="eli-notes">Anything to remember?</label>
-        <textarea class="input" id="eli-notes" placeholder="Weight felt good, form slipped on last set, shoulder felt fine..."></textarea>
+        <label class="input-label" for="notes-${userId}">Anything to remember? (optional)</label>
+        <textarea class="input" id="notes-${userId}" placeholder="What felt good, what was hard, or what to change next time..."></textarea>
       </div>
     </div>
-  ` : '';
+  `;
 
-  const christinaSection = includesChristina ? `
-    <div class="reports-section" style="${includesEli?'margin-top:24px;':''}">
-      <div class="section-label" style="margin-bottom:12px;">${userLabel(App, 'christina')} — Check-In</div>
-      <div class="input-group">
-        <label class="input-label" for="christina-notes">How was that? (optional)</label>
-        <textarea class="input" id="christina-notes"
-          placeholder="What felt good, what was hard..."></textarea>
-      </div>
-    </div>
-  ` : '';
+  const eliSection = includesEli ? profileCheckinSection('eli') : '';
+  const christinaSection = includesChristina ? profileCheckinSection('christina') : '';
 
   return `
     <div class="page page--no-nav fade-in" style="padding-bottom:100px;">
@@ -1283,7 +1321,11 @@ function renderProfileCard(App, userId) {
   const disabled = new Set(p.disabledExerciseIds ?? []);
   const onCount = list.filter(x => !disabled.has(x.id)).length;
   const prog = p.progressionMode ?? 'cycle_review';
-  const trainingStyle = p.trainingStyle ?? (userId === 'eli' ? 'progressive' : 'pain_adaptive');
+  const primaryGoal = p.primaryGoal ?? 'general_fitness';
+  const secondaryGoals = new Set(p.secondaryGoals ?? []);
+  const experience = p.experienceLevel ?? 'some';
+  const typicalDuration = p.typicalDuration ?? '20_30';
+  const adaptationPreference = p.adaptationPreference ?? 'both';
 
   const rows = list.map(x => `
     <label class="ex-toggle">
@@ -1307,21 +1349,31 @@ function renderProfileCard(App, userId) {
             aria-pressed="${p.icon === icon}">${icon}</button>`).join('')}
         </div>
       </div>
+      <div class="setting-row" style="flex-direction:column;align-items:stretch;gap:12px;">
+        <div class="setting-row__label">Training goals</div>
+        <label class="input-label" for="primary-goal-${userId}">Primary goal</label>
+        <select class="input" id="primary-goal-${userId}">
+          ${TRAINING_GOALS.map(([value,label]) => `<option value="${value}" ${primaryGoal===value?'selected':''}>${label}</option>`).join('')}
+        </select>
+        <div class="input-label">Optional secondary goals</div>
+        <div class="ex-toggle-grid">${TRAINING_GOALS.filter(([value]) => value !== primaryGoal).map(([value,label]) => `
+          <label class="ex-toggle"><input type="checkbox" data-secondary-goal="${userId}" value="${value}" ${secondaryGoals.has(value)?'checked':''}><span>${label}</span></label>`).join('')}</div>
+      </div>
       <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
-        <div>
-          <div class="setting-row__label">Training style</div>
-          <div class="setting-row__desc">${trainingStyle === 'progressive'
-            ? 'Progressive strength rotation with cycle-based load review.'
-            : 'Pain-adaptive rotation scaled after a daily symptom check-in.'}</div>
-        </div>
-        <div class="mode-toggle" role="group" aria-label="${escapeHtml(p.displayName)} training style">
-          <button class="mode-btn ${trainingStyle === 'progressive' ? 'active' : ''}"
-                  data-training-style="${userId}" data-style="progressive"
-                  aria-pressed="${trainingStyle === 'progressive'}">Progressive strength</button>
-          <button class="mode-btn ${trainingStyle === 'pain_adaptive' ? 'active' : ''}"
-                  data-training-style="${userId}" data-style="pain_adaptive"
-                  aria-pressed="${trainingStyle === 'pain_adaptive'}">Pain-adaptive</button>
-        </div>
+        <div class="setting-row__label">Training experience</div>
+        <div class="mode-toggle" style="flex-wrap:wrap;">${EXPERIENCE_LEVELS.map(([value,label]) => `
+          <button class="mode-btn ${experience===value?'active':''}" data-experience="${userId}" data-value="${value}">${label}</button>`).join('')}</div>
+      </div>
+      <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
+        <div class="setting-row__label">Typical workout duration</div>
+        <div class="mode-toggle" style="flex-wrap:wrap;">${DURATION_OPTIONS.map(([value,label]) => `
+          <button class="mode-btn ${typicalDuration===value?'active':''}" data-duration="${userId}" data-value="${value}">${label}</button>`).join('')}</div>
+      </div>
+      <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
+        <div><div class="setting-row__label">Adaptation preferences</div>
+          <div class="setting-row__desc">Preferences guide recommendations; today’s capacity can always adjust the plan.</div></div>
+        <div class="mode-toggle" style="flex-wrap:wrap;">${ADAPTATION_OPTIONS.map(([value,label]) => `
+          <button class="mode-btn ${adaptationPreference===value?'active':''}" data-adaptation="${userId}" data-value="${value}">${label}</button>`).join('')}</div>
       </div>
       <div class="setting-row">
         <div>

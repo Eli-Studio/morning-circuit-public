@@ -8,7 +8,7 @@ import { unlockAudio, playSessionComplete, playMeditation, stopMeditation, playT
 import { initCycleFromLaunchDate, startNewCycle, isCycleExpired, updateCycleAfterSession, getCycleProgressionSuggestions } from './cycles.js';
 import { getEliReadiness } from './reports.js';
 import { getEliSuggestion, getChristinaSuggestion, getMissedDays } from './rotation.js';
-import { adaptChristinaExercises, annotateSymptomConflicts } from './adaptation.js';
+import { adaptChristinaExercises, adaptWorkoutToCapacity, annotateSymptomConflicts } from './adaptation.js';
 import { analyzePairedConflicts, getConflictingItems } from './equipment.js';
 import { buildExercisePlan, createSession, logSet, skipExercise,
          completeSession, abandonSession, getTemplateAnchors,
@@ -38,6 +38,7 @@ window.App = {
     symptomsByUser:         {},
     pendingSymptomUsers:    [],
     activeSymptomUser:      null,
+    capacityChoiceByUser:   {},
     eliSuggestion:          null,
     christinaSuggestion:    null,
     selectedEliRoutine:     null,
@@ -183,7 +184,7 @@ function navigate(screen) {
         let eliPlan = [], cPlan = [];
 
         if (users.includes('eli')) {
-          const style = App.state.settings.profiles.eli.trainingStyle ?? 'progressive';
+          const style = 'progressive';
           if (style === 'progressive') {
             App.ui.eliSuggestion = getEliSuggestion(App.state.cycleState, App.state.sessions, App.state.missedDays);
           } else {
@@ -215,6 +216,11 @@ function navigate(screen) {
                 eliPlan = adaptChristinaExercises(eliPlan, App.ui.symptomsByUser.eli);
                 eliPlan = annotateSymptomConflicts(eliPlan, App.ui.symptomsByUser.eli);
               }
+              const adjustment = adaptWorkoutToCapacity(eliPlan, App.ui.symptomsByUser.eli, App.state.settings.profiles.eli);
+              App.ui.eliOriginalPlan = eliPlan;
+              App.ui.eliCapacityAdjustment = adjustment;
+              App.ui.eliRecommendedPlan = adjustment.plan;
+              eliPlan = adjustment.plan;
               App.ui.eliAnchors = App.ui.eliSuggestion.primary.type === 'heavy_weight'
                 ? getTemplateAnchors(tmpl, App.data.exercises, cycleNum) : [];
             }
@@ -225,7 +231,7 @@ function navigate(screen) {
         }
 
         if (users.includes('christina')) {
-          const style = App.state.settings.profiles.christina.trainingStyle ?? 'pain_adaptive';
+          const style = 'progressive';
           if (style === 'pain_adaptive') {
             App.ui.christinaSuggestion = getChristinaSuggestion(App.state.cycleState, App.ui.symptomsByUser.christina);
           } else {
@@ -255,6 +261,11 @@ function navigate(screen) {
                 App.state.sessions.filter(s => s.users.includes('christina')).length, cycleNum,
                 {}, {}, App.state.settings.profiles.christina);
               if (style === 'pain_adaptive') plan = adaptChristinaExercises(plan, App.ui.symptomsByUser.christina);
+              const adjustment = adaptWorkoutToCapacity(plan, App.ui.symptomsByUser.christina, App.state.settings.profiles.christina);
+              App.ui.christinaOriginalPlan = plan;
+              App.ui.christinaCapacityAdjustment = adjustment;
+              App.ui.christinaRecommendedPlan = adjustment.plan;
+              plan = adjustment.plan;
               // Advisory: flag exercises that conflict with today's active symptoms (no removal).
               plan = annotateSymptomConflicts(plan, App.ui.symptomsByUser.christina);
               cPlan = plan;
@@ -512,11 +523,13 @@ function setupListeners(screen) {
 
     case 'symptom_check': {
       let currentPainDay = 'low';
+      let currentEnergy = 'medium';
+      let currentSoreness = 'low';
       const activeSymptoms = new Set();
 
-      document.querySelectorAll('.pain-btn').forEach(btn => {
+      document.querySelectorAll('#pain-picker .pain-btn').forEach(btn => {
         btn.addEventListener('click', e => {
-          document.querySelectorAll('.pain-btn').forEach(b => b.classList.remove('selected'));
+          document.querySelectorAll('#pain-picker .pain-btn').forEach(b => b.classList.remove('selected'));
           e.currentTarget.classList.add('selected');
           currentPainDay = e.currentTarget.dataset.value;
         });
@@ -535,11 +548,28 @@ function setupListeners(screen) {
         });
       });
 
-      on('btn-symptoms-done', 'click', () => {
+      document.querySelectorAll('[data-energy]').forEach(btn => btn.addEventListener('click', e => {
+        document.querySelectorAll('[data-energy]').forEach(b => b.classList.remove('selected'));
+        e.currentTarget.classList.add('selected');
+        currentEnergy = e.currentTarget.dataset.energy;
+      }));
+      document.querySelectorAll('[data-soreness]').forEach(btn => btn.addEventListener('click', e => {
+        document.querySelectorAll('[data-soreness]').forEach(b => b.classList.remove('selected'));
+        e.currentTarget.classList.add('selected');
+        currentSoreness = e.currentTarget.dataset.soreness;
+      }));
+
+      const finishCapacity = (useDefaults = false) => {
         const symptoms = {};
         activeSymptoms.forEach(id => { symptoms[id] = 5; });
         const userId = App.ui.activeSymptomUser ?? 'christina';
-        App.ui.symptomsByUser[userId] = { painDay: currentPainDay, symptoms };
+        App.ui.symptomsByUser[userId] = {
+          painDay: useDefaults ? 'low' : currentPainDay,
+          energy: useDefaults ? 'medium' : currentEnergy,
+          soreness: useDefaults ? 'low' : currentSoreness,
+          availableTime: get('available-time')?.value ?? App.state.settings.profiles[userId].typicalDuration,
+          symptoms: useDefaults ? {} : symptoms
+        };
         if (userId === 'christina') App.ui.christinaSymptoms = App.ui.symptomsByUser[userId];
         App.ui.activeSymptomUser = App.ui.pendingSymptomUsers.shift() ?? null;
         if (App.ui.activeSymptomUser) navigate('symptom_check');
@@ -547,12 +577,35 @@ function setupListeners(screen) {
           App.ui.routineSuggestionBuilt = false;
           navigate('routine_suggestion');
         }
-      });
+      };
+      on('btn-symptoms-done', 'click', () => finishCapacity(false));
+      on('btn-capacity-skip', 'click', () => finishCapacity(true));
       break;
     }
 
     case 'routine_suggestion': {
       const cycleNum = App.state.cycleState?.cycleNumber ?? 1;
+
+      const refreshConflicts = () => {
+        if (App.ui.selectedUsers?.length === 2 && App.ui.eliExercisePlan?.length && App.ui.christinaExercisePlan?.length) {
+          App.ui.christinaExercisePlan = reorderToReduceConflicts(App.ui.eliExercisePlan, App.ui.christinaExercisePlan, App.data.exercises);
+          App.ui.conflicts = analyzePairedConflicts(App.ui.eliExercisePlan, App.ui.christinaExercisePlan, App.data.exercises);
+        }
+      };
+      const chooseCapacityPlan = (userId, useOriginal) => {
+        const key = userId === 'eli' ? 'eliExercisePlan' : 'christinaExercisePlan';
+        const source = useOriginal
+          ? App.ui[`${userId}OriginalPlan`]
+          : App.ui[`${userId}RecommendedPlan`];
+        if (source) App.ui[key] = source.map(ex => ({ ...ex }));
+        App.ui.capacityChoiceByUser[userId] = useOriginal ? 'original' : 'recommended';
+        refreshConflicts();
+        navigate('routine_suggestion');
+      };
+      on('btn-eli-original', 'click', () => chooseCapacityPlan('eli', true));
+      on('btn-eli-recommended', 'click', () => chooseCapacityPlan('eli', false));
+      on('btn-christina-original', 'click', () => chooseCapacityPlan('christina', true));
+      on('btn-christina-recommended', 'click', () => chooseCapacityPlan('christina', false));
 
       on('eli-alt-toggle', 'click', () => {
         get('eli-alternatives')?.classList.toggle('hidden');
@@ -730,58 +783,45 @@ function setupListeners(screen) {
       break;
 
     case 'end_checkin': {
-      let selectedFatigue   = null;
-      let selectedJointPain = null;
-      let selectedLocations = [];
+      const checkins = {};
+      App.ui.selectedUsers.forEach(userId => { checkins[userId] = { effort: null, jointPain: 'no', notes: '' }; });
 
-      document.querySelectorAll('.fatigue-btn').forEach(btn => {
+      document.querySelectorAll('[data-effort-user]').forEach(btn => {
         btn.addEventListener('click', e => {
-          document.querySelectorAll('.fatigue-btn').forEach(b => b.classList.remove('selected'));
+          const userId = e.currentTarget.dataset.effortUser;
+          document.querySelectorAll(`[data-effort-user="${userId}"]`).forEach(b => b.classList.remove('selected'));
           e.currentTarget.classList.add('selected');
-          selectedFatigue = parseInt(e.currentTarget.dataset.fatigue);
+          checkins[userId].effort = parseInt(e.currentTarget.dataset.value);
         });
       });
 
-      document.querySelectorAll('.pain-option-btn').forEach(btn => {
+      document.querySelectorAll('[data-joint-pain-user]').forEach(btn => {
         btn.addEventListener('click', e => {
-          document.querySelectorAll('.pain-option-btn').forEach(b => {
-            b.classList.remove('selected','selected--none');
-          });
-          const pain = e.currentTarget.dataset.pain;
+          const userId = e.currentTarget.dataset.jointPainUser;
+          document.querySelectorAll(`[data-joint-pain-user="${userId}"]`).forEach(b => b.classList.remove('selected','selected--none'));
+          const pain = e.currentTarget.dataset.value;
           e.currentTarget.classList.add(pain === 'no' ? 'selected--none' : 'selected');
-          selectedJointPain = pain;
-          const wrap = get('pain-locations-wrap');
-          if (wrap) wrap.style.display = pain !== 'no' ? 'block' : 'none';
-        });
-      });
-
-      document.querySelectorAll('.chip').forEach(chip => {
-        chip.addEventListener('click', e => {
-          e.currentTarget.classList.toggle('selected');
-          const loc = e.currentTarget.dataset.location;
-          if (selectedLocations.includes(loc)) {
-            selectedLocations = selectedLocations.filter(l => l !== loc);
-          } else {
-            selectedLocations.push(loc);
-          }
+          checkins[userId].jointPain = pain;
         });
       });
 
       on('btn-checkin-done', 'click', () => {
         const users = App.ui.selectedUsers;
-        if (users.includes('eli') && selectedFatigue) {
-          App.ui.eliCheckin = {
-            formFatigue:    selectedFatigue,
-            jointPain:      selectedJointPain ?? 'no',
-            jointLocations: selectedLocations,
-            notes:          get('eli-notes')?.value ?? ''
+        users.forEach(userId => {
+          checkins[userId].notes = get(`notes-${userId}`)?.value ?? '';
+          App.currentSession.profileCheckins[userId] = {
+            ...(App.currentSession.profileCheckins[userId] ?? {}), ...checkins[userId]
           };
-        }
+        });
+        if (users.includes('eli')) App.ui.eliCheckin = {
+          formFatigue: checkins.eli.effort, jointPain: checkins.eli.jointPain,
+          jointLocations: [], notes: checkins.eli.notes
+        };
         if (users.includes('christina')) {
           App.ui.christinaCheckin = {
-            notes:    get('christina-notes')?.value ?? '',
-            painDay:  App.ui.christinaSymptoms?.painDay ?? 'low',
-            symptoms: App.ui.christinaSymptoms?.symptoms ?? {}
+            notes: checkins.christina.notes,
+            painDay: App.ui.symptomsByUser.christina?.painDay ?? 'low',
+            symptoms: App.ui.symptomsByUser.christina?.symptoms ?? {}
           };
         }
         navigate('meditation');
@@ -988,14 +1028,27 @@ function setupListeners(screen) {
           });
         });
 
-        document.querySelectorAll(`[data-training-style="${uid}"]`).forEach(btn => {
-          btn.addEventListener('click', () => {
-            prof().trainingStyle = btn.dataset.style;
-            prof().progressionMode = btn.dataset.style === 'progressive' ? 'cycle_review' : 'fixed';
-            saveState(App.state);
-            navigate('settings');
-          });
+        get(`primary-goal-${uid}`)?.addEventListener('change', e => {
+          prof().primaryGoal = e.target.value;
+          prof().secondaryGoals = (prof().secondaryGoals ?? []).filter(x => x !== e.target.value);
+          saveState(App.state); navigate('settings');
         });
+        document.querySelectorAll(`[data-secondary-goal="${uid}"]`).forEach(cb => cb.addEventListener('change', () => {
+          const goals = new Set(prof().secondaryGoals ?? []);
+          cb.checked ? goals.add(cb.value) : goals.delete(cb.value);
+          prof().secondaryGoals = [...goals]; saveState(App.state);
+        }));
+        document.querySelectorAll(`[data-experience="${uid}"]`).forEach(btn => btn.addEventListener('click', () => {
+          prof().experienceLevel = btn.dataset.value; saveState(App.state); navigate('settings');
+        }));
+        document.querySelectorAll(`[data-duration="${uid}"]`).forEach(btn => btn.addEventListener('click', () => {
+          prof().typicalDuration = btn.dataset.value; saveState(App.state); navigate('settings');
+        }));
+        document.querySelectorAll(`[data-adaptation="${uid}"]`).forEach(btn => btn.addEventListener('click', () => {
+          prof().adaptationPreference = btn.dataset.value;
+          prof().progressionMode = btn.dataset.value === 'daily_capacity' ? 'fixed' : 'cycle_review';
+          saveState(App.state); navigate('settings');
+        }));
 
         document.querySelectorAll(`[data-ex-toggle="${uid}"]`).forEach(cb => {
           cb.addEventListener('change', () => {
@@ -1185,10 +1238,9 @@ function saveMissedDaysAndContinue() {
 }
 
 function afterMissedDays() {
-  const adaptiveUsers = App.ui.selectedUsers.filter(userId =>
-    App.state.settings.profiles[userId].trainingStyle === 'pain_adaptive'
-  );
+  const adaptiveUsers = [...App.ui.selectedUsers];
   App.ui.symptomsByUser = {};
+  App.ui.capacityChoiceByUser = {};
   App.ui.activeSymptomUser = adaptiveUsers.shift() ?? null;
   App.ui.pendingSymptomUsers = adaptiveUsers;
   if (App.ui.activeSymptomUser) {
@@ -1217,10 +1269,10 @@ function buildWorkoutState() {
     const tmpl = App.data.routineTemplates.find(t => t.id === (eliR.templateId ?? eliR.id));
     if (tmpl) {
       eliExercises = buildExercisePlan(tmpl, App.data.exercises, eliSessionCount, cycleNum, App.state.cycleState?.eliExerciseWeights ?? {}, App.state.cycleState?.eliExerciseRepsTarget ?? {}, App.state.settings.profiles.eli);
-      if (App.state.settings.profiles.eli.trainingStyle === 'pain_adaptive') {
-        eliExercises = adaptChristinaExercises(eliExercises, App.ui.symptomsByUser.eli);
-        eliExercises = annotateSymptomConflicts(eliExercises, App.ui.symptomsByUser.eli);
+      if (App.ui.capacityChoiceByUser.eli !== 'original') {
+        eliExercises = adaptWorkoutToCapacity(eliExercises, App.ui.symptomsByUser.eli, App.state.settings.profiles.eli).plan;
       }
+      eliExercises = annotateSymptomConflicts(eliExercises, App.ui.symptomsByUser.eli);
     }
   }
 
@@ -1228,7 +1280,9 @@ function buildWorkoutState() {
     const tmpl = App.data.routineTemplates.find(t => t.id === (christR.templateId ?? christR.id));
     if (tmpl) {
       let plan = buildExercisePlan(tmpl, App.data.exercises, cSessionCount, cycleNum, {}, {}, App.state.settings.profiles.christina);
-      if (App.state.settings.profiles.christina.trainingStyle === 'pain_adaptive') plan = adaptChristinaExercises(plan, App.ui.symptomsByUser.christina);
+      if (App.ui.capacityChoiceByUser.christina !== 'original') {
+        plan = adaptWorkoutToCapacity(plan, App.ui.symptomsByUser.christina, App.state.settings.profiles.christina).plan;
+      }
       christinaExercises = annotateSymptomConflicts(plan, App.ui.symptomsByUser.christina);
     }
   }
