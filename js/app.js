@@ -211,10 +211,12 @@ function navigate(screen) {
           );
           App.ui.selectedChristinaRoutine = {
             id:    App.ui.christinaSuggestion.primary.id,
+            templateId: App.ui.christinaSuggestion.primary.templateId,
             level: App.ui.christinaSuggestion.primary.adaptationLevel
           };
           if (App.ui.selectedChristinaRoutine.id !== 'skip_rest') {
-            const tmpl = App.data.routineTemplates.find(t => t.id === App.ui.selectedChristinaRoutine.id);
+            const tmplId = App.ui.selectedChristinaRoutine.templateId ?? App.ui.selectedChristinaRoutine.id;
+            const tmpl = App.data.routineTemplates.find(t => t.id === tmplId);
             if (tmpl) {
               let plan = buildExercisePlan(tmpl, App.data.exercises,
                 App.state.sessions.filter(s => s.users.includes('christina')).length, cycleNum,
@@ -1155,7 +1157,7 @@ function buildWorkoutState() {
   }
 
   if (users.includes('christina') && christR?.id && christR.id !== 'skip_rest') {
-    const tmpl = App.data.routineTemplates.find(t => t.id === christR.id);
+    const tmpl = App.data.routineTemplates.find(t => t.id === (christR.templateId ?? christR.id));
     if (tmpl) {
       let plan = buildExercisePlan(tmpl, App.data.exercises, cSessionCount, cycleNum, {}, {}, App.state.settings.profiles.christina);
       if (App.ui.christinaSymptoms) plan = adaptChristinaExercises(plan, App.ui.christinaSymptoms);

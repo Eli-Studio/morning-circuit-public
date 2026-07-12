@@ -13,7 +13,7 @@
 // ============================================================
 
 export const PAIN_RULES = {
-  low:    { sets: 3, reps: '8-10', maxExercises: 4 },
+  low:    { sets: 3, reps: '6-8',  maxExercises: 5 },
   medium: { sets: 3, reps: '6-8',  maxExercises: 3 },
   high:   { sets: 2, reps: '6-8',  maxExercises: 2 }
 };

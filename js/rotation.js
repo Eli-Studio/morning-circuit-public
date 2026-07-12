@@ -105,10 +105,21 @@ const CHRISTINA_LABELS = {
   christina_recovery_minimum:    'Recovery / Minimum'
 };
 
+// A low-pain day borrows the corresponding five-slot strength template while
+// retaining Christina's own routine id, sequence pointer, profile weight, and
+// reporting. Medium/high days continue to use the gentle templates above.
+const CHRISTINA_LOW_PAIN_TEMPLATES = {
+  christina_gentle_upper:        { id: 'eli_upper_push', label: 'Strength Upper Body' },
+  christina_gentle_lower:        { id: 'eli_lower_body', label: 'Strength Lower Body' },
+  christina_gentle_pull_posture: { id: 'eli_upper_pull', label: 'Strength Pull & Posture' },
+  christina_gentle_full_body:    { id: 'eli_full_body',  label: 'Strength Full Body' }
+};
+
 export function getChristinaSuggestion(cycleState, symptomState) {
   const painDay = symptomState?.painDay ?? 'low';
 
   const nextId = CHRISTINA_SEQUENCE[cycleState.christinaSequencePointer % CHRISTINA_SEQUENCE.length];
+  const lowPainTemplate = CHRISTINA_LOW_PAIN_TEMPLATES[nextId];
 
   // Low = full gentle routine; medium/high = same routine, scaled down by the pain rules.
   const adaptationLevel = painDay === 'low' ? 'normal' : 'reduced';
@@ -116,7 +127,8 @@ export function getChristinaSuggestion(cycleState, symptomState) {
   return {
     primary: {
       id:              nextId,
-      label:           CHRISTINA_LABELS[nextId] || nextId,
+      templateId:      painDay === 'low' ? lowPainTemplate?.id : nextId,
+      label:           painDay === 'low' ? lowPainTemplate?.label : (CHRISTINA_LABELS[nextId] || nextId),
       adaptationLevel,
       reason:          describePainRule(painDay)
     },
