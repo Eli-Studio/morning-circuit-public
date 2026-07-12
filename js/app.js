@@ -1391,8 +1391,14 @@ function buildWorkoutState() {
     App.state.cycleState?.cycleId ?? null
   );
   App.currentSession.profileCheckins = Object.fromEntries(users.map(userId => [userId, {
-    trainingStyle: App.state.settings.profiles[userId].trainingStyle,
-    ...(App.ui.symptomsByUser[userId] ?? {})
+    primaryGoal: App.state.settings.profiles[userId].primaryGoal,
+    adaptationPreference: App.state.settings.profiles[userId].adaptationPreference,
+    capacity: { ...(App.ui.symptomsByUser[userId] ?? {}) },
+    ...(App.ui.symptomsByUser[userId] ?? {}),
+    adjustmentChanged: Boolean(App.ui[`${userId}CapacityAdjustment`]?.changed),
+    adjustmentChoices: { ...(App.ui.capacityDimensionChoices[userId] ?? {}) },
+    adjustmentUsed: Boolean(App.ui[`${userId}CapacityAdjustment`]?.changed)
+      && Object.values(App.ui.capacityDimensionChoices[userId] ?? {}).some(value => value !== 'original')
   }]));
 
   // Capture advisory symptom conflicts on the session for later visibility

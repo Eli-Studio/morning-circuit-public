@@ -11,7 +11,7 @@ import { getCycleDayNumber } from './cycles.js';
 import { formatDate, formatDateShort, escapeHtml, getTomorrowDate, formatTime, today, safeSpotifyUrl } from './utils.js';
 import { buildMonthCalendar, renderCalendarHTML, getEliStats, getChristinaStats,
          getEliStrengthData, getEliMuscleStimulus, getEliReadiness, getChristinaReadiness,
-         getProfileProgressionSignals,
+         getProfileProgressionSignals, getProfileOverview,
          getChristinaMovementExposure, getChristinaSymptomCalendarData,
          renderStrengthProgressChart, renderMuscleMapChart, renderReadinessCard,
          renderChristinaMovementExposureMap, renderChristinaSymptomCalendarHTML,
@@ -1153,11 +1153,30 @@ export function renderReports(App) {
 
   const calData  = buildMonthCalendar(year, month, sessions, missedDays);
   const calHTML  = renderCalendarHTML(year, month, calData);
-  const eliStats = getEliStats(sessions);
-  const cStats   = getChristinaStats(sessions);
-
-  const cSymptomCalendarData = getChristinaSymptomCalendarData(year, month, sessions);
-  const cSymptomCalendarHTML = renderChristinaSymptomCalendarHTML(year, month, cSymptomCalendarData);
+  const goalLabel = value => TRAINING_GOALS.find(([id]) => id === value)?.[1] ?? 'Improve general fitness';
+  const approachLabel = value => ADAPTATION_OPTIONS.find(([id]) => id === value)?.[1] ?? 'Use both';
+  const profileOverviewHTML = ['eli', 'christina'].map(userId => {
+    const profile = state.settings.profiles[userId];
+    const stats = getProfileOverview(sessions, userId);
+    const capacityTotal = stats.capacity.low + stats.capacity.medium + stats.capacity.high;
+    return `<section style="margin-bottom:24px;">
+      <div class="section-label" style="margin-bottom:8px;">${userLabel(App, userId)}</div>
+      <p class="text-muted text-sm" style="margin:0 0 12px;">${escapeHtml(goalLabel(profile.primaryGoal))} · ${escapeHtml(approachLabel(profile.adaptationPreference))}</p>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-card__value">${stats.total}</div><div class="stat-card__label">Completed sessions</div></div>
+        <div class="stat-card"><div class="stat-card__value">${stats.adapted}</div><div class="stat-card__label">Adjusted sessions</div></div>
+        <div class="stat-card"><div class="stat-card__value">${stats.weighted}</div><div class="stat-card__label">Weighted sessions</div></div>
+        <div class="stat-card"><div class="stat-card__value">${stats.avgEffort ?? '—'}</div><div class="stat-card__label">Average effort</div></div>
+      </div>
+      <div class="card" style="margin-top:10px;">
+        <div class="setting-row__label">Daily capacity history</div>
+        <div class="setting-row__desc" style="margin-top:5px;">${capacityTotal
+          ? `Low discomfort ${stats.capacity.low} · Medium ${stats.capacity.medium} · High ${stats.capacity.high}`
+          : 'Capacity details will appear after new check-ins.'}</div>
+        <div class="setting-row__desc" style="margin-top:5px;">Joint discomfort noted after ${stats.discomfort} session${stats.discomfort === 1 ? '' : 's'}.</div>
+      </div>
+    </section>`;
+  }).join('<div class="divider"></div>');
   const progressionSignals = ['eli','christina'].map(userId => ({ userId,
     rows: getProfileProgressionSignals(sessions, userId, state.settings.profiles[userId])
   }));
@@ -1179,57 +1198,7 @@ export function renderReports(App) {
       ${calHTML}
       <div class="divider"></div>
 
-      <div class="section-label" style="margin-bottom:12px;">${userLabel(App, 'eli')}</div>
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-card__value" style="color:var(--eli);">${eliStats.total}</div><div class="stat-card__label">Total sessions</div></div>
-        <div class="stat-card"><div class="stat-card__value" style="color:var(--eli);">${eliStats.heavy}</div><div class="stat-card__label">Heavy sessions</div></div>
-        <div class="stat-card"><div class="stat-card__value" style="color:var(--eli);">${eliStats.avgFatigue ?? '—'}</div><div class="stat-card__label">Avg form fatigue</div></div>
-        <div class="stat-card"><div class="stat-card__value" style="color:var(--red);">${eliStats.jointPainCount}</div><div class="stat-card__label">Pain flags</div></div>
-      </div>
-      <div class="section-label" style="margin-top:16px;margin-bottom:8px;">Cycle Strength Progress</div>
-      <p class="text-muted text-sm" style="margin-bottom:8px;margin-top:-4px;">How much each lift improved from cycle start to your current best clean set.</p>
-      <div id="chart-eli-strength"></div>
-      <div class="section-label" style="margin-top:20px;margin-bottom:8px;">Muscle Group Stimulus Map</div>
-      <p class="text-muted text-sm" style="margin-bottom:8px;margin-top:-4px;">Estimated hard sets per muscle group this cycle. Does not indicate muscle gain.</p>
-      <div id="chart-eli-muscle"></div>
-      <div class="section-label" style="margin-top:20px;margin-bottom:8px;">Recovery-Adjusted Growth Readiness</div>
-      <div id="card-eli-readiness" style="margin-bottom:4px;"></div>
-
-      <div class="divider"></div>
-
-           <div class="section-label" style="margin-bottom:12px;">${userLabel(App, 'christina')}</div>
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-card__value" style="color:var(--christina);">${cStats.total}</div><div class="stat-card__label">Total sessions</div></div>
-        <div class="stat-card"><div class="stat-card__value" style="color:var(--christina);">${cStats.normal}</div><div class="stat-card__label">Full intensity</div></div>
-        <div class="stat-card"><div class="stat-card__value" style="color:var(--yellow);">${cStats.reduced}</div><div class="stat-card__label">Adapted sessions</div></div>
-        <div class="stat-card"><div class="stat-card__value" style="color:var(--text-2);">${cStats.recovery}</div><div class="stat-card__label">Recovery days</div></div>
-      </div>
-
-      <div class="section-label" style="margin-top:16px;margin-bottom:8px;">Movement Exposure Map</div>
-      <p class="text-muted text-sm" style="margin-bottom:8px;margin-top:-4px;">
-        Estimated movement exposure by area this cycle. Use this to spot repeated load, tolerance patterns, and possible recovery needs.
-      </p>
-      <div id="chart-christina-exposure"></div>
-
-      <div class="section-label" style="margin-top:20px;margin-bottom:8px;">Symptom + Pain Calendar</div>
-      <p class="text-muted text-sm" style="margin-bottom:8px;margin-top:-4px;">
-        Shows symptom load by day, with full, adapted, and recovery markers.
-      </p>
-      <div id="chart-christina-symptom-calendar">
-        ${cSymptomCalendarHTML}
-      </div>
-
-      <div class="section-label" style="margin-top:20px;margin-bottom:8px;">Pain Day Breakdown</div>
-      <div class="chart-wrap"><canvas id="chart-christina-pain-days"></canvas></div>
-
-      <div class="section-label" style="margin-top:16px;margin-bottom:8px;">Top Symptoms This Cycle</div>
-      <p class="text-muted text-sm" style="margin-bottom:8px;margin-top:-4px;">
-        Frequency summary across logged ${escapeHtml(userName(App, 'christina'))} sessions.
-      </p>
-      <div class="chart-wrap"><canvas id="chart-christina-symptoms"></canvas></div>
-
-      <div class="section-label" style="margin-top:20px;margin-bottom:8px;">Recovery-Adjusted Growth Readiness</div>
-      <div id="card-christina-readiness" style="margin-bottom:4px;"></div>
+      ${profileOverviewHTML}
 
       <div class="divider"></div>
       <div class="section-label" style="margin-bottom:12px;">Progression Recommendations</div>
@@ -1247,21 +1216,8 @@ export function renderReports(App) {
 }
 
 export function initReportCharts(App) {
-  const { sessions, cycleState } = App.state;
-  const cStats = getChristinaStats(sessions);
-
-  renderStrengthProgressChart('chart-eli-strength', getEliStrengthData(sessions, cycleState));
-  renderMuscleMapChart('chart-eli-muscle', getEliMuscleStimulus(sessions, cycleState));
-  renderReadinessCard('card-eli-readiness', getEliReadiness(sessions, cycleState), 'eli');
-
-  renderChristinaMovementExposureMap(
-    'chart-christina-exposure',
-    getChristinaMovementExposure(sessions, cycleState)
-  );
-
-  renderChristinaPainDaysChart('chart-christina-pain-days', cStats.painDays);
-  renderChristinaSymptomChart('chart-christina-symptoms', cStats.symptomFreq, cStats.symptomLabels);
-  renderReadinessCard('card-christina-readiness', getChristinaReadiness(sessions, cycleState), 'christina');
+  // The unified tracker is rendered from profile-neutral session summaries.
+  // Kept as a hook for future charts that support either profile equally.
 }
 
 // ---- Cycle Review ------------------------------------------

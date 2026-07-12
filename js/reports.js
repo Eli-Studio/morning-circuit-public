@@ -362,6 +362,46 @@ export function getProfileProgressionSignals(sessions, userId, profile) {
   }));
 }
 
+// Slot-neutral overview: either profile can pursue strength, use adaptations,
+// or do both. Older sessions remain readable through the legacy fallbacks.
+export function getProfileOverview(sessions, userId) {
+  const completed = sessions.filter(s => s.status === 'completed' && s.users?.includes(userId));
+  const checkinFor = session => session.profileCheckins?.[userId]
+    ?? (userId === 'eli' ? session.eliEndCheckin : session.christinaCheckin) ?? {};
+  const capacityFor = session => checkinFor(session).capacity ?? checkinFor(session);
+  const effortValues = completed.map(s => checkinFor(s).effort ?? checkinFor(s).formFatigue)
+    .filter(value => Number.isFinite(Number(value)) && Number(value) > 0).map(Number);
+  const adapted = completed.filter(session => {
+    const checkin = checkinFor(session);
+    if (checkin.adjustmentUsed != null) return checkin.adjustmentUsed;
+    if (checkin.adjustmentChanged != null) return checkin.adjustmentChanged;
+    if (userId === 'christina') return ['reduced', 'recovery'].includes(session.christinaAdaptationLevel);
+    return false;
+  }).length;
+  const weighted = completed.filter(session => (session.exerciseLogs?.[userId] ?? []).some(log =>
+    (log.setLogs ?? []).some(set => typeof set.weightUsed === 'string' && /kg/i.test(set.weightUsed))
+  )).length;
+  const discomfort = completed.filter(session => {
+    const value = checkinFor(session).jointPain;
+    return value && value !== 'no';
+  }).length;
+  const capacity = { low: 0, medium: 0, high: 0 };
+  completed.forEach(session => {
+    const pain = capacityFor(session).painDay;
+    if (pain in capacity) capacity[pain]++;
+  });
+  return {
+    total: completed.length,
+    adapted,
+    weighted,
+    discomfort,
+    avgEffort: effortValues.length
+      ? (effortValues.reduce((sum, value) => sum + value, 0) / effortValues.length).toFixed(1)
+      : null,
+    capacity
+  };
+}
+
 // ---- Recovery-Adjusted Growth Readiness --------------------
 
 function scoreToStatus(value, greenThreshold, yellowThreshold, higherIsBetter = true) {
