@@ -89,6 +89,79 @@ export function adaptChristinaExercises(exercises, symptomState) {
   return scaled.slice(0, rules.maxExercises);
 }
 
+// Unified, temporary daily-capacity adjustment. This never writes progression
+// state: it changes only the plan objects created for today's workout.
+export function adaptWorkoutToCapacity(exercises, capacity = {}, profile = {}) {
+  const energy = capacity.energy ?? 'medium';
+  const pain = capacity.painDay ?? 'low';
+  const soreness = capacity.soreness ?? 'low';
+  let score = 0;
+  if (energy === 'low') score += 2; else if (energy === 'high') score -= 1;
+  if (pain === 'medium') score += 1; else if (pain === 'high') score += 3;
+  if (soreness === 'medium') score += 1; else if (soreness === 'high') score += 2;
+
+  const goalCaps = {
+    build_strength: 5,
+    improve_mobility: 4,
+    maintain_consistency: 4,
+    return_after_break: 3,
+    general_fitness: 4
+  };
+  let maxExercises = goalCaps[profile.primaryGoal] ?? 4;
+  let setReduction = 0, reps = null, restBonus = 0, loadFactor = 1;
+  const reasons = [];
+  if (score >= 5) {
+    maxExercises = Math.min(maxExercises, 2); setReduction = 1; reps = '5-7'; restBonus = 30; loadFactor = 0.75;
+    reasons.push('capacity is substantially reduced today');
+  } else if (score >= 2) {
+    maxExercises = Math.min(maxExercises, 4); setReduction = 1; reps = '6-8'; restBonus = 15; loadFactor = 0.9;
+    reasons.push('today calls for a moderate reduction');
+  } else if (energy === 'high' && pain === 'low' && soreness === 'low') {
+    reasons.push('capacity supports the original plan');
+  }
+  if (profile.experienceLevel === 'new') maxExercises = Math.min(maxExercises, 3);
+  if (maxExercises < exercises.length && score < 2) reasons.push(`your current goal sets a ${maxExercises}-exercise plan`);
+  else if (maxExercises < exercises.length) reasons.push(`today's capacity reduces the plan to ${maxExercises} exercises`);
+
+  const plan = exercises.slice(0, maxExercises).map(ex => ({
+    ...ex,
+    sets: Math.max(1, (ex.sets ?? 3) - setReduction),
+    reps: ex.durationSeconds ? ex.reps : (reps ?? ex.reps),
+    currentReps: ex.durationSeconds ? ex.currentReps : (reps ? parseFirstNum(reps) : ex.currentReps),
+    restSeconds: (ex.restSeconds ?? 120) + restBonus,
+    currentWeightKg: ex.currentWeightKg == null ? ex.currentWeightKg
+      : Math.max(0.5, Math.round(ex.currentWeightKg * loadFactor * 2) / 2),
+    adapted: score >= 2,
+    adaptationNote: score >= 2 ? `${Math.round(loadFactor * 100)}% load · ${restBonus ? `+${restBonus}s rest` : 'usual rest'}` : null
+  }));
+  return {
+    plan, changed: score >= 2 || maxExercises < exercises.length, score, reasons,
+    comparison: {
+      originalCount: exercises.length, recommendedCount: plan.length,
+      setReduction, recommendedReps: reps, restBonus, loadFactor
+    }
+  };
+}
+
+export function composeCapacityPlan(original, recommended, choices = {}) {
+  const use = dimension => (choices[dimension] ?? 'recommended') === 'recommended';
+  const count = use('length') ? recommended.length : original.length;
+  const recommendedById = new Map(recommended.map(ex => [ex.id, ex]));
+  return original.slice(0, count).map(ex => {
+    const rec = recommendedById.get(ex.id) ?? ex;
+    return {
+      ...ex,
+      sets: use('volume') ? rec.sets : ex.sets,
+      reps: use('volume') ? rec.reps : ex.reps,
+      currentReps: use('volume') ? rec.currentReps : ex.currentReps,
+      currentWeightKg: use('load') ? rec.currentWeightKg : ex.currentWeightKg,
+      restSeconds: use('rest') ? rec.restSeconds : ex.restSeconds,
+      adapted: ['length','volume','load','rest'].some(key => use(key)) && rec.adapted,
+      adaptationNote: ['volume','load','rest'].some(key => use(key)) ? rec.adaptationNote : null
+    };
+  });
+}
+
 /**
  * Union of mechanical attributes to avoid given today's active symptoms.
  * A symptom is "active" when its value in symptomState.symptoms is truthy

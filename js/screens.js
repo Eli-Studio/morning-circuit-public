@@ -11,6 +11,7 @@ import { getCycleDayNumber } from './cycles.js';
 import { formatDate, formatDateShort, escapeHtml, getTomorrowDate, formatTime, today, safeSpotifyUrl } from './utils.js';
 import { buildMonthCalendar, renderCalendarHTML, getEliStats, getChristinaStats,
          getEliStrengthData, getEliMuscleStimulus, getEliReadiness, getChristinaReadiness,
+         getProfileProgressionSignals,
          getChristinaMovementExposure, getChristinaSymptomCalendarData,
          renderStrengthProgressChart, renderMuscleMapChart, renderReadinessCard,
          renderChristinaMovementExposureMap, renderChristinaSymptomCalendarHTML,
@@ -27,10 +28,61 @@ function symptomConflictBadge(ex) {
 }
 
 // User display helpers — single source of truth for names/emoji
-const USER_LABEL = {
-  eli:      '💪 Eli',
-  christina:'💃 Christina'
-};
+const userName = (App, id) => App?.state?.settings?.profiles?.[id]?.displayName
+  ?? (id === 'eli' ? 'User A' : 'User B');
+const userIcon = (App, id) => App?.state?.settings?.profiles?.[id]?.icon
+  ?? (id === 'eli' ? '🔵' : '🟣');
+const userLabel = (App, id) => `${userIcon(App, id)} ${escapeHtml(userName(App, id))}`;
+const PROFILE_ICONS = ['🔵', '🟣', '⭐', '⚡', '🌿', '🏔️', '🧘', '🏋️'];
+const TRAINING_GOALS = [
+  ['build_strength', 'Build strength'], ['improve_mobility', 'Improve mobility'],
+  ['maintain_consistency', 'Maintain consistency'], ['return_after_break', 'Return after a break'],
+  ['general_fitness', 'Improve general fitness']
+];
+const EXPERIENCE_LEVELS = [
+  ['new', 'New to exercise'], ['some', 'Some experience'], ['experienced', 'Experienced']
+];
+const ADAPTATION_OPTIONS = [
+  ['progress_when_ready', 'Progress weights when appropriate'],
+  ['daily_capacity', 'Adapt based on daily capacity'],
+  ['both', 'Use both']
+];
+
+// Kept beside the Tracker renderer so a partial offline-cache refresh cannot
+// leave screens.js depending on a brand-new named export from reports.js.
+function getProfileOverview(sessions, userId) {
+  const completed = sessions.filter(s => s.status === 'completed' && s.users?.includes(userId));
+  const checkinFor = session => session.profileCheckins?.[userId]
+    ?? (userId === 'eli' ? session.eliEndCheckin : session.christinaCheckin) ?? {};
+  const capacityFor = session => checkinFor(session).capacity ?? checkinFor(session);
+  const effortValues = completed.map(s => checkinFor(s).effort ?? checkinFor(s).formFatigue)
+    .filter(value => Number.isFinite(Number(value)) && Number(value) > 0).map(Number);
+  const adapted = completed.filter(session => {
+    const checkin = checkinFor(session);
+    if (checkin.adjustmentUsed != null) return checkin.adjustmentUsed;
+    if (checkin.adjustmentChanged != null) return checkin.adjustmentChanged;
+    return userId === 'christina' && ['reduced', 'recovery'].includes(session.christinaAdaptationLevel);
+  }).length;
+  const weighted = completed.filter(session => (session.exerciseLogs?.[userId] ?? []).some(log =>
+    (log.setLogs ?? []).some(set => typeof set.weightUsed === 'string' && /kg/i.test(set.weightUsed))
+  )).length;
+  const discomfort = completed.filter(session => {
+    const value = checkinFor(session).jointPain;
+    return value && value !== 'no';
+  }).length;
+  const capacity = { low: 0, medium: 0, high: 0 };
+  completed.forEach(session => {
+    const pain = capacityFor(session).painDay;
+    if (pain in capacity) capacity[pain]++;
+  });
+  return {
+    total: completed.length, adapted, weighted, discomfort,
+    avgEffort: effortValues.length
+      ? (effortValues.reduce((sum, value) => sum + value, 0) / effortValues.length).toFixed(1)
+      : null,
+    capacity
+  };
+}
 
 // ---- Shared Nav -------------------------------------------
 
@@ -54,18 +106,47 @@ function bottomNav(active) {
 
 // ---- 1. First Launch --------------------------------------
 
-export function renderFirstLaunch() {
+export function renderFirstLaunch(App) {
   const tomorrow = getTomorrowDate();
+  const profileSetup = userId => {
+    const p = App.state.settings.profiles[userId];
+    return `<div class="card" style="margin-bottom:12px;">
+      <div class="setting-row__label" style="margin-bottom:12px;">${userLabel(App, userId)}</div>
+      <div class="input-group"><label class="input-label" for="onboard-name-${userId}">Profile name</label>
+        <input class="input" id="onboard-name-${userId}" value="${escapeHtml(p.displayName)}" maxlength="80"></div>
+      <div class="input-group"><label class="input-label" for="onboard-goal-${userId}">Primary training goal</label>
+        <select class="input" id="onboard-goal-${userId}">${TRAINING_GOALS.map(([value,label]) => `<option value="${value}" ${p.primaryGoal===value?'selected':''}>${label}</option>`).join('')}</select></div>
+      <div class="input-group"><label class="input-label" for="onboard-experience-${userId}">Training experience</label>
+        <select class="input" id="onboard-experience-${userId}">${EXPERIENCE_LEVELS.map(([value,label]) => `<option value="${value}" ${p.experienceLevel===value?'selected':''}>${label}</option>`).join('')}</select></div>
+      <div class="input-group" style="margin-bottom:0;"><label class="input-label" for="onboard-adaptation-${userId}">Training approach</label>
+        <select class="input" id="onboard-adaptation-${userId}">${ADAPTATION_OPTIONS.map(([value,label]) => `<option value="${value}" ${p.adaptationPreference===value?'selected':''}>${label}</option>`).join('')}</select>
+        <div class="setting-row__desc" style="margin-top:6px;">“Use both” supports progression while adapting individual workouts to daily capacity.</div></div>
+    </div>`;
+  };
+  const unavailable = new Set(App.state.settings.unavailableEquipmentIds ?? []);
+  const equipmentSetup = (App.data.equipment ?? []).map(item => `<label class="ex-toggle">
+    <input type="checkbox" data-onboard-equipment value="${item.id}" ${unavailable.has(item.id)?'':'checked'}><span>${escapeHtml(item.name)}</span></label>`).join('');
   return `
     <div class="page page--no-nav fade-in">
-      <div style="margin-top:48px;">
+      <div style="margin-top:24px;">
         <div class="eyebrow">Welcome</div>
         <h1 class="page-title" style="margin-top:8px;">Morning Circuit</h1>
         <p class="page-subtitle" style="margin-top:12px;">
-          Daily training for Eli &amp; Christina.<br>Set your cycle start date to begin.
+          Set up two flexible profiles. You can change everything later in Settings.
         </p>
       </div>
-      <div style="margin-top:48px;">
+      <div style="margin-top:28px;">
+        <div class="section-label" style="margin-bottom:12px;">Profiles</div>
+        ${profileSetup('eli')}${profileSetup('christina')}
+        <div class="section-label" style="margin:24px 0 12px;">Household equipment</div>
+        <div class="card">
+          <div class="setting-row__desc" style="margin-bottom:12px;">Leave available items checked. Routines automatically avoid anything turned off.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+            <button class="btn btn--sm btn--secondary" id="btn-onboard-bodyweight">Bodyweight-focused</button>
+            <button class="btn btn--sm btn--ghost" id="btn-onboard-all-equipment">Enable all</button>
+          </div><div class="ex-toggle-grid">${equipmentSetup}</div>
+        </div>
+        <div class="section-label" style="margin:24px 0 12px;">Start cycle</div>
         <div class="input-group">
           <label class="input-label" for="launch-date">Cycle 1 Start Date</label>
           <input type="date" id="launch-date" class="input" value="${tomorrow}">
@@ -73,6 +154,8 @@ export function renderFirstLaunch() {
         <p class="text-muted text-sm" style="margin-bottom:32px;line-height:1.5;">
           A cycle is 28 days. Rotation tracking and reports are organized around it.
         </p>
+        <div class="card" style="margin-bottom:16px;"><div class="setting-row__label">Private by default</div>
+          <div class="setting-row__desc" style="margin-top:6px;line-height:1.5;">Profiles and workout records stay in this browser. There is no account or automatic sync. Use JSON backups regularly.</div></div>
         <button class="btn btn--primary" id="btn-launch">Start Cycle 1</button>
       </div>
     </div>
@@ -166,13 +249,13 @@ export function renderHello(state, backupNudgeDismissed = false) {
 
       <div class="who-grid" style="margin-top:14px;flex:1;min-height:0;">
         <button class="who-card who-card--eli" data-who="eli">
-          <div class="who-card__emoji">💪</div>
-          <div class="who-card__name">Eli</div>
+          <div class="who-card__emoji">${userIcon({state}, 'eli')}</div>
+          <div class="who-card__name">${escapeHtml(settings.profiles.eli.displayName)}</div>
           <div class="who-card__next">${eliNextLabel}</div>
         </button>
         <button class="who-card who-card--christina" data-who="christina">
-          <div class="who-card__emoji">💃</div>
-          <div class="who-card__name">Christina</div>
+          <div class="who-card__emoji">${userIcon({state}, 'christina')}</div>
+          <div class="who-card__name">${escapeHtml(settings.profiles.christina.displayName)}</div>
           <div class="who-card__next">${cNextLabel}</div>
         </button>
       </div>
@@ -190,11 +273,11 @@ export function renderHello(state, backupNudgeDismissed = false) {
       <div class="hello-stats" style="margin-top:12px;">
         <div class="hello-stat">
           <div class="hello-stat__value" style="color:var(--eli);">${eliSessions}</div>
-          <div class="hello-stat__label">Eli sessions</div>
+          <div class="hello-stat__label">${escapeHtml(settings.profiles.eli.displayName)} sessions</div>
         </div>
         <div class="hello-stat">
           <div class="hello-stat__value" style="color:var(--christina);">${christSessions}</div>
-          <div class="hello-stat__label">Christina sessions</div>
+          <div class="hello-stat__label">${escapeHtml(settings.profiles.christina.displayName)} sessions</div>
         </div>
         <div class="hello-stat">
           <div class="hello-stat__value">${dayNum}/28</div>
@@ -260,7 +343,7 @@ export function renderMissedDays(missedDates) {
 
 // ---- 3b. Log Today ----------------------------------------
 
-export function renderLogToday() {
+export function renderLogToday(App) {
   const todayStr = today();
   const cats = [
     { id:'skip_rest',   icon:'😴', label:'Skip / Rest'  },
@@ -290,13 +373,13 @@ export function renderLogToday() {
           style="flex:1;padding:14px 8px;border-radius:12px;cursor:pointer;
                  font-size:0.95rem;font-weight:400;line-height:1.3;
                  border:1px solid var(--border);background:var(--surface);color:var(--text-2);">
-          💪<br>Eli
+          ${userIcon(App, 'eli')}<br>${escapeHtml(userName(App, 'eli'))}
         </button>
         <button data-log-who="christina" id="log-who-christina"
           style="flex:1;padding:14px 8px;border-radius:12px;cursor:pointer;
                  font-size:0.95rem;font-weight:400;line-height:1.3;
                  border:1px solid var(--border);background:var(--surface);color:var(--text-2);">
-          💃<br>Christina
+          ${userIcon(App, 'christina')}<br>${escapeHtml(userName(App, 'christina'))}
         </button>
       </div>
 
@@ -321,19 +404,34 @@ export function renderLogToday() {
 // screen, reports, and conflict matrix can never drift apart again.
 const SYMPTOM_CLUSTERS = CHRISTINA_SYMPTOMS;
 
-export function renderSymptomCheck() {
+export function renderSymptomCheck(App, userId = 'christina') {
   return `
     <div class="page page--no-nav fade-in">
-      <div class="eyebrow eyebrow--christina">💃 Christina</div>
+      <div class="eyebrow eyebrow--christina">${userLabel(App, userId)}</div>
       <h1 class="page-title" style="margin-top:6px;">How are you feeling?</h1>
       <p class="page-subtitle" style="margin-bottom:28px;">Quick check — this shapes today's routine.</p>
 
+      <div class="section-label">Energy level</div>
+      <div class="pain-picker" data-capacity-group="energy">
+        <button type="button" class="pain-btn" data-energy="low">Low</button>
+        <button type="button" class="pain-btn selected" data-energy="medium">Medium</button>
+        <button type="button" class="pain-btn" data-energy="high">High</button>
+      </div>
+
       <div class="section-label">Today's pain level</div>
       <div class="pain-picker" id="pain-picker">
-        <button class="pain-btn selected" data-value="low"><span class="pain-btn__icon">😊</span>Low</button>
-        <button class="pain-btn" data-value="medium"><span class="pain-btn__icon">😐</span>Medium</button>
-        <button class="pain-btn" data-value="high"><span class="pain-btn__icon">😔</span>High</button>
+        <button type="button" class="pain-btn selected" data-value="low"><span class="pain-btn__icon">😊</span>Low</button>
+        <button type="button" class="pain-btn" data-value="medium"><span class="pain-btn__icon">😐</span>Medium</button>
+        <button type="button" class="pain-btn" data-value="high"><span class="pain-btn__icon">😔</span>High</button>
       </div>
+
+      <div class="section-label">Muscle soreness</div>
+      <div class="pain-picker" data-capacity-group="soreness">
+        <button type="button" class="pain-btn selected" data-soreness="low">Low</button>
+        <button type="button" class="pain-btn" data-soreness="medium">Medium</button>
+        <button type="button" class="pain-btn" data-soreness="high">High</button>
+      </div>
+
 
       <div class="section-label" style="margin-top:4px;">
         Active symptoms
@@ -348,6 +446,7 @@ export function renderSymptomCheck() {
       </div>
 
       <button class="btn btn--christina" id="btn-symptoms-done" style="margin-top:8px;">Continue</button>
+      <button class="btn btn--ghost" id="btn-capacity-skip">Use typical capacity</button>
     </div>
   `;
 }
@@ -387,6 +486,51 @@ function buildExerciseListHTML(exercises, user) {
   `;
 }
 
+function capacityAdjustmentHTML(adjustment, userId, choices = {}, resolvedChoice = null) {
+  if (!adjustment?.changed || resolvedChoice) return '';
+  const explanation = adjustment.reasons?.length
+    ? adjustment.reasons.join('; ') : 'today’s capacity suggests a lighter plan';
+  const c = adjustment.comparison ?? {};
+  const rows = [
+    ['length', 'Exercises', c.originalCount, c.recommendedCount],
+    ['volume', 'Sets / reps', 'Original', c.recommendedReps ? `−${c.setReduction} set · ${c.recommendedReps}` : 'Original'],
+    ['load', 'Working load', '100%', `${Math.round((c.loadFactor ?? 1) * 100)}%`],
+    ['rest', 'Rest', 'Original', c.restBonus ? `+${c.restBonus}s` : 'Original']
+  ].filter(([, , original, recommended]) => String(original) !== String(recommended));
+  const choiceButton = (dimension, mode, label) => {
+    const selected = (choices[dimension] ?? 'recommended') === mode;
+    return `<button class="mode-btn ${selected ? 'active' : ''}" data-capacity-user="${userId}"
+      data-capacity-dimension="${dimension}" data-capacity-mode="${mode}" aria-pressed="${selected}">${escapeHtml(String(label))}</button>`;
+  };
+  return `<div class="symptom-flag-summary" style="margin-bottom:10px;">
+    <strong>Suggested change:</strong> ${escapeHtml(explanation)}.
+    ${rows.length > 1 ? 'Mix the options below, or choose one complete plan.' : 'Choose the original or suggested plan.'}
+    <div style="margin-top:10px;border-top:1px solid var(--border);">
+      ${rows.map(([dimension,label,original,recommended]) => `<div class="setting-row" style="padding:9px 0;gap:8px;">
+        <div style="min-width:86px;"><div class="setting-row__label">${label}</div></div>
+        <div class="mode-toggle" style="margin-left:auto;">${choiceButton(dimension,'original',original)}${choiceButton(dimension,'recommended',recommended)}</div>
+      </div>`).join('')}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+      <button class="btn btn--sm btn--secondary" id="btn-${userId}-recommended">Use all recommended</button>
+      <button class="btn btn--sm btn--ghost" id="btn-${userId}-original">Use all original</button>
+    </div>
+  </div>`;
+}
+
+function workoutCountHTML(plan) {
+  const count = plan?.length ?? 0;
+  return `<div class="setting-row__desc" style="margin:8px 0 10px;">Today’s workout: <strong>${count} exercise${count === 1 ? '' : 's'}</strong></div>`;
+}
+
+function strengthRestHTML(suggestion) {
+  if (!suggestion?.heavyBlocked) return '';
+  return `<div class="symptom-flag-summary" style="margin-bottom:12px;">
+    <strong>Strength rest day recommended.</strong> Recovery supports progress; missing perfection is not the goal.
+    Choose a circuit, cardio, mobility, gentle movement, or rest below—and come back for strength afterward.
+  </div>`;
+}
+
 function buildEquipmentSummaryHTML(eliExercisePlan, christinaExercisePlan, allEquipment) {
   const ids = new Set();
   [...(eliExercisePlan ?? []), ...(christinaExercisePlan ?? [])].forEach(ex => {
@@ -424,7 +568,7 @@ export function renderRoutineSuggestion(App) {
 
   const eliSection = selectedUsers.includes('eli') && eliSuggestion ? `
     <div class="reports-section">
-      <div class="section-label" style="margin-bottom:12px;">💪 Eli</div>
+      <div class="section-label" style="margin-bottom:12px;">${userLabel(App, 'eli')}</div>
       <div class="suggestion-card suggestion-card--eli">
         <div class="eyebrow" style="margin-bottom:6px;">
           ${eliSuggestion.primary.type === 'heavy_weight' ? '🏋️ Heavy' : '⚡ Circuit'}
@@ -432,11 +576,14 @@ export function renderRoutineSuggestion(App) {
         </div>
         <div class="suggestion-card__routine">${escapeHtml(eliSuggestion.primary.label)}</div>
         <div class="suggestion-card__reason">${escapeHtml(eliSuggestion.primary.reason)}</div>
+        ${strengthRestHTML(eliSuggestion)}
+        ${capacityAdjustmentHTML(ui.eliCapacityAdjustment, 'eli', ui.capacityDimensionChoices?.eli, ui.capacityChoiceByUser?.eli)}
+        ${workoutCountHTML(eliExercisePlan)}
         ${anchorLine}
         ${buildExerciseListHTML(eliExercisePlan, 'eli')}
         <p class="text-muted text-sm" style="margin-top:4px;">Tap an exercise to swap it.</p>
         <button class="alternatives-toggle" id="eli-alt-toggle">Change routine <span>→</span></button>
-        <div id="eli-alternatives" class="hidden">
+        <div id="eli-alternatives" class="${eliSuggestion.heavyBlocked ? '' : 'hidden'}">
           <div class="alternatives" style="margin-top:6px;">
             ${eliSuggestion.alternatives.map(alt => `
               <button class="alt-btn" data-user="eli" data-id="${alt.id}" data-type="${alt.type ?? ''}">
@@ -451,7 +598,7 @@ export function renderRoutineSuggestion(App) {
 
   const christinaSection = selectedUsers.includes('christina') && christinaSuggestion ? `
     <div class="reports-section" style="margin-top:20px;">
-      <div class="section-label" style="margin-bottom:12px;">💃 Christina</div>
+      <div class="section-label" style="margin-bottom:12px;">${userLabel(App, 'christina')}</div>
       <div class="suggestion-card suggestion-card--christina">
         <div class="eyebrow eyebrow--christina" style="margin-bottom:6px;">
           ${christinaSuggestion.primary.adaptationLevel === 'recovery' ? 'Recovery'
@@ -460,6 +607,9 @@ export function renderRoutineSuggestion(App) {
         </div>
         <div class="suggestion-card__routine">${escapeHtml(christinaSuggestion.primary.label)}</div>
         <div class="suggestion-card__reason">${escapeHtml(christinaSuggestion.primary.reason)}</div>
+        ${strengthRestHTML(christinaSuggestion)}
+        ${capacityAdjustmentHTML(ui.christinaCapacityAdjustment, 'christina', ui.capacityDimensionChoices?.christina, ui.capacityChoiceByUser?.christina)}
+        ${workoutCountHTML(christinaExercisePlan)}
         ${(() => {
           const n = (christinaExercisePlan ?? []).filter(e => e.symptomConflicts?.length).length;
           return n ? `<div class="symptom-flag-summary">⚠ ${n} exercise${n>1?'s':''} flagged for today's symptoms — review below, do or swap as feels right.</div>` : '';
@@ -467,7 +617,7 @@ export function renderRoutineSuggestion(App) {
         ${buildExerciseListHTML(christinaExercisePlan, 'christina')}
         <p class="text-muted text-sm" style="margin-top:4px;">Tap an exercise to swap it.</p>
         <button class="alternatives-toggle" id="christina-alt-toggle">Change routine <span>→</span></button>
-        <div id="christina-alternatives" class="hidden">
+        <div id="christina-alternatives" class="${christinaSuggestion.heavyBlocked ? '' : 'hidden'}">
           <div class="alternatives" style="margin-top:6px;">
             ${christinaSuggestion.alternatives.map(alt => `
               <button class="alt-btn" data-user="christina" data-id="${alt.id}"
@@ -575,7 +725,7 @@ function renderRepsStepper(ex, user) {
  */
 function renderSingleUserPanel(ws, user) {
   const us = ws[user];
-  const label = USER_LABEL[user];
+  const label = userLabel(App, user);
 
   if (us.completed) {
     return `
@@ -772,7 +922,7 @@ export function renderWorkoutRunner(App) {
     <div class="workout-screen">
       <div class="workout-header">
         <span class="workout-header__label">
-          ${USER_LABEL[user]} · Ex ${exNum}/${exTotal}
+          ${userLabel(App, user)} · Ex ${exNum}/${exTotal}
         </span>
         <div style="display:flex;align-items:center;gap:8px;">
           ${spotifyPill}
@@ -878,9 +1028,9 @@ export function renderEndCheckin(App) {
 
   const summaryLines = [
     includesEli && eliRoutineLabel
-      ? `<div>💪 <strong>Eli:</strong> ${escapeHtml(eliRoutineLabel)}</div>` : '',
+      ? `<div>${userIcon(App, 'eli')} <strong>${escapeHtml(userName(App, 'eli'))}:</strong> ${escapeHtml(eliRoutineLabel)}</div>` : '',
     includesChristina && christinaRoutineLabel
-      ? `<div>💃 <strong>Christina:</strong> ${escapeHtml(christinaRoutineLabel)}</div>` : '',
+      ? `<div>${userIcon(App, 'christina')} <strong>${escapeHtml(userName(App, 'christina'))}:</strong> ${escapeHtml(christinaRoutineLabel)}</div>` : '',
     durationMin
       ? `<div style="margin-top:6px;color:var(--text-2);">Duration: ${durationMin} min</div>` : ''
   ].filter(Boolean).join('');
@@ -891,13 +1041,13 @@ export function renderEndCheckin(App) {
     </div>
   ` : '';
 
-  const eliSection = includesEli ? `
+  const profileCheckinSection = userId => `
     <div class="reports-section">
-      <div class="section-label" style="margin-bottom:12px;">💪 Eli — Form Check</div>
-      <div class="section-label" style="margin-bottom:8px;">Form fatigue this session</div>
-      <div class="fatigue-scale" id="fatigue-scale">
+      <div class="section-label" style="margin-bottom:12px;">${userLabel(App, userId)} — Check-In</div>
+      <div class="section-label" style="margin-bottom:8px;">How hard did this session feel?</div>
+      <div class="fatigue-scale">
         ${FATIGUE_SCALE.map(f => `
-          <button class="fatigue-btn" data-fatigue="${f.value}">
+          <button class="fatigue-btn" data-effort-user="${userId}" data-value="${f.value}">
             <span class="fatigue-btn__num">${f.value}</span>
             <span class="fatigue-btn__text">
               <span class="fatigue-btn__label">${f.label}</span>
@@ -909,34 +1059,18 @@ export function renderEndCheckin(App) {
       <div class="section-label" style="margin-top:20px;margin-bottom:8px;">Joint pain?</div>
       <div class="pain-options">
         ${JOINT_PAIN_OPTIONS.map(opt => `
-          <button class="pain-option-btn" data-pain="${opt.value}">${opt.label}</button>
+          <button class="pain-option-btn" data-joint-pain-user="${userId}" data-value="${opt.value}">${opt.label}</button>
         `).join('')}
       </div>
-      <div id="pain-locations-wrap" style="display:none;">
-        <div class="section-label" style="margin-top:10px;margin-bottom:8px;">Where?</div>
-        <div class="location-chips" id="pain-locations">
-          ${JOINT_PAIN_LOCATIONS.map(loc => `
-            <button class="chip" data-location="${loc}">${loc}</button>
-          `).join('')}
-        </div>
-      </div>
       <div class="input-group" style="margin-top:16px;">
-        <label class="input-label" for="eli-notes">Anything to remember?</label>
-        <textarea class="input" id="eli-notes" placeholder="Weight felt good, form slipped on last set, shoulder felt fine..."></textarea>
+        <label class="input-label" for="notes-${userId}">Anything to remember? (optional)</label>
+        <textarea class="input" id="notes-${userId}" placeholder="What felt good, what was hard, or what to change next time..."></textarea>
       </div>
     </div>
-  ` : '';
+  `;
 
-  const christinaSection = includesChristina ? `
-    <div class="reports-section" style="${includesEli?'margin-top:24px;':''}">
-      <div class="section-label" style="margin-bottom:12px;">💃 Christina — Check-In</div>
-      <div class="input-group">
-        <label class="input-label" for="christina-notes">How was that? (optional)</label>
-        <textarea class="input" id="christina-notes"
-          placeholder="What felt good, what was hard..."></textarea>
-      </div>
-    </div>
-  ` : '';
+  const eliSection = includesEli ? profileCheckinSection('eli') : '';
+  const christinaSection = includesChristina ? profileCheckinSection('christina') : '';
 
   return `
     <div class="page page--no-nav fade-in" style="padding-bottom:100px;">
@@ -1000,10 +1134,10 @@ export function renderSessionSummary(App) {
   const calHTML = renderCalendarHTML(year, month, calData);
 
   const eliLine = snap.users?.includes('eli') && snap.eliRoutineId
-    ? `<div>💪 <strong>Eli:</strong> ${escapeHtml(snap.eliRoutineId.replace(/eli_/g,'').replace(/_/g,' '))}</div>`
+    ? `<div>${userIcon(App, 'eli')} <strong>${escapeHtml(userName(App, 'eli'))}:</strong> ${escapeHtml(snap.eliRoutineId.replace(/eli_/g,'').replace(/_/g,' '))}</div>`
     : '';
   const cLine = snap.users?.includes('christina') && snap.christinaRoutineId
-    ? `<div>💃 <strong>Christina:</strong> ${escapeHtml(snap.christinaRoutineId.replace(/christina_/g,'').replace(/_/g,' '))} (${snap.christinaAdaptationLevel ?? ''})</div>`
+    ? `<div>${userIcon(App, 'christina')} <strong>${escapeHtml(userName(App, 'christina'))}:</strong> ${escapeHtml(snap.christinaRoutineId.replace(/christina_/g,'').replace(/_/g,' '))} (${snap.christinaAdaptationLevel ?? ''})</div>`
     : '';
 
   const summaryCard = (eliLine || cLine || snap.meditation?.completed)
@@ -1015,9 +1149,9 @@ export function renderSessionSummary(App) {
 
   const legendHtml = `
     <div class="legend">
-      <div class="legend-item"><div class="legend-dot" style="background:${ACTIVITY_COLORS.eli_heavy}"></div>Eli Heavy</div>
+      <div class="legend-item"><div class="legend-dot" style="background:${ACTIVITY_COLORS.eli_heavy}"></div>${escapeHtml(userName(App, 'eli'))} strength</div>
       <div class="legend-item"><div class="legend-dot" style="background:${ACTIVITY_COLORS.eli_circuit}"></div>Circuit</div>
-      <div class="legend-item"><div class="legend-dot" style="background:${ACTIVITY_COLORS.christina_normal}"></div>Christina Full</div>
+      <div class="legend-item"><div class="legend-dot" style="background:${ACTIVITY_COLORS.christina_normal}"></div>${escapeHtml(userName(App, 'christina'))} full</div>
       <div class="legend-item"><div class="legend-dot" style="background:${ACTIVITY_COLORS.christina_reduced}"></div>Adapted</div>
       <div class="legend-item"><div class="legend-dot" style="background:${ACTIVITY_COLORS.meditation}"></div>Meditation</div>
       <div class="legend-item"><div class="legend-dot" style="background:${ACTIVITY_COLORS.skip_rest}"></div>Rest</div>
@@ -1055,11 +1189,41 @@ export function renderReports(App) {
 
   const calData  = buildMonthCalendar(year, month, sessions, missedDays);
   const calHTML  = renderCalendarHTML(year, month, calData);
-  const eliStats = getEliStats(sessions);
-  const cStats   = getChristinaStats(sessions);
-
-  const cSymptomCalendarData = getChristinaSymptomCalendarData(year, month, sessions);
-  const cSymptomCalendarHTML = renderChristinaSymptomCalendarHTML(year, month, cSymptomCalendarData);
+  const goalLabel = value => TRAINING_GOALS.find(([id]) => id === value)?.[1] ?? 'Improve general fitness';
+  const approachLabel = value => ADAPTATION_OPTIONS.find(([id]) => id === value)?.[1] ?? 'Use both';
+  const profileOverviewHTML = ['eli', 'christina'].map(userId => {
+    const profile = state.settings.profiles[userId];
+    const stats = getProfileOverview(sessions, userId);
+    const capacityTotal = stats.capacity.low + stats.capacity.medium + stats.capacity.high;
+    return `<section style="margin-bottom:24px;">
+      <div class="section-label" style="margin-bottom:8px;">${userLabel(App, userId)}</div>
+      <p class="text-muted text-sm" style="margin:0 0 12px;">${escapeHtml(goalLabel(profile.primaryGoal))} · ${escapeHtml(approachLabel(profile.adaptationPreference))}</p>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-card__value">${stats.total}</div><div class="stat-card__label">Completed sessions</div></div>
+        <div class="stat-card"><div class="stat-card__value">${stats.adapted}</div><div class="stat-card__label">Adjusted sessions</div></div>
+        <div class="stat-card"><div class="stat-card__value">${stats.weighted}</div><div class="stat-card__label">Weighted sessions</div></div>
+        <div class="stat-card"><div class="stat-card__value">${stats.avgEffort ?? '—'}</div><div class="stat-card__label">Average effort</div></div>
+      </div>
+      <div class="card" style="margin-top:10px;">
+        <div class="setting-row__label">Daily capacity history</div>
+        <div class="setting-row__desc" style="margin-top:5px;">${capacityTotal
+          ? `Low discomfort ${stats.capacity.low} · Medium ${stats.capacity.medium} · High ${stats.capacity.high}`
+          : 'Capacity details will appear after new check-ins.'}</div>
+        <div class="setting-row__desc" style="margin-top:5px;">Joint discomfort noted after ${stats.discomfort} session${stats.discomfort === 1 ? '' : 's'}.</div>
+      </div>
+    </section>`;
+  }).join('<div class="divider"></div>');
+  const progressionSignals = ['eli','christina'].map(userId => ({ userId,
+    rows: getProfileProgressionSignals(sessions, userId, state.settings.profiles[userId])
+  }));
+  const progressionHTML = progressionSignals.map(({userId, rows}) => `
+    <div class="card" style="margin-bottom:10px;">
+      <div class="setting-row__label">${userLabel(App, userId)}</div>
+      ${rows.length ? rows.slice(0,4).map(row => `<div class="setting-row" style="display:block;">
+        <div class="setting-row__label">${escapeHtml(row.name)}</div>
+        <div class="setting-row__desc">${escapeHtml(row.recommendation)} ${escapeHtml(row.reason)}</div>
+      </div>`).join('') : '<div class="setting-row__desc" style="margin-top:6px;">Keep training normally. A progression signal appears only after repeated manageable sessions.</div>'}
+    </div>`).join('');
 
   return `
     <div class="page fade-in" style="padding-bottom:80px;">
@@ -1070,58 +1234,12 @@ export function renderReports(App) {
       ${calHTML}
       <div class="divider"></div>
 
-      <div class="section-label" style="margin-bottom:12px;">💪 Eli</div>
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-card__value" style="color:var(--eli);">${eliStats.total}</div><div class="stat-card__label">Total sessions</div></div>
-        <div class="stat-card"><div class="stat-card__value" style="color:var(--eli);">${eliStats.heavy}</div><div class="stat-card__label">Heavy sessions</div></div>
-        <div class="stat-card"><div class="stat-card__value" style="color:var(--eli);">${eliStats.avgFatigue ?? '—'}</div><div class="stat-card__label">Avg form fatigue</div></div>
-        <div class="stat-card"><div class="stat-card__value" style="color:var(--red);">${eliStats.jointPainCount}</div><div class="stat-card__label">Pain flags</div></div>
-      </div>
-      <div class="section-label" style="margin-top:16px;margin-bottom:8px;">Cycle Strength Progress</div>
-      <p class="text-muted text-sm" style="margin-bottom:8px;margin-top:-4px;">How much each lift improved from cycle start to your current best clean set.</p>
-      <div id="chart-eli-strength"></div>
-      <div class="section-label" style="margin-top:20px;margin-bottom:8px;">Muscle Group Stimulus Map</div>
-      <p class="text-muted text-sm" style="margin-bottom:8px;margin-top:-4px;">Estimated hard sets per muscle group this cycle. Does not indicate muscle gain.</p>
-      <div id="chart-eli-muscle"></div>
-      <div class="section-label" style="margin-top:20px;margin-bottom:8px;">Recovery-Adjusted Growth Readiness</div>
-      <div id="card-eli-readiness" style="margin-bottom:4px;"></div>
+      ${profileOverviewHTML}
 
       <div class="divider"></div>
-
-           <div class="section-label" style="margin-bottom:12px;">💃 Christina</div>
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-card__value" style="color:var(--christina);">${cStats.total}</div><div class="stat-card__label">Total sessions</div></div>
-        <div class="stat-card"><div class="stat-card__value" style="color:var(--christina);">${cStats.normal}</div><div class="stat-card__label">Full intensity</div></div>
-        <div class="stat-card"><div class="stat-card__value" style="color:var(--yellow);">${cStats.reduced}</div><div class="stat-card__label">Adapted sessions</div></div>
-        <div class="stat-card"><div class="stat-card__value" style="color:var(--text-2);">${cStats.recovery}</div><div class="stat-card__label">Recovery days</div></div>
-      </div>
-
-      <div class="section-label" style="margin-top:16px;margin-bottom:8px;">Movement Exposure Map</div>
-      <p class="text-muted text-sm" style="margin-bottom:8px;margin-top:-4px;">
-        Estimated movement exposure by area this cycle. Use this to spot repeated load, tolerance patterns, and possible recovery needs.
-      </p>
-      <div id="chart-christina-exposure"></div>
-
-      <div class="section-label" style="margin-top:20px;margin-bottom:8px;">Symptom + Pain Calendar</div>
-      <p class="text-muted text-sm" style="margin-bottom:8px;margin-top:-4px;">
-        Shows symptom load by day, with full, adapted, and recovery markers.
-      </p>
-      <div id="chart-christina-symptom-calendar">
-        ${cSymptomCalendarHTML}
-      </div>
-
-      <div class="section-label" style="margin-top:20px;margin-bottom:8px;">Pain Day Breakdown</div>
-      <div class="chart-wrap"><canvas id="chart-christina-pain-days"></canvas></div>
-
-      <div class="section-label" style="margin-top:16px;margin-bottom:8px;">Top Symptoms This Cycle</div>
-      <p class="text-muted text-sm" style="margin-bottom:8px;margin-top:-4px;">
-        Frequency summary across logged Christina sessions.
-      </p>
-      <div class="chart-wrap"><canvas id="chart-christina-symptoms"></canvas></div>
-
-      <div class="section-label" style="margin-top:20px;margin-bottom:8px;">Recovery-Adjusted Growth Readiness</div>
-      <div id="card-christina-readiness" style="margin-bottom:4px;"></div>
-
+      <div class="section-label" style="margin-bottom:12px;">Progression Recommendations</div>
+      <p class="text-muted text-sm" style="margin-bottom:10px;">Based on recent completed workouts, reported effort, and joint discomfort. Recommendations never apply automatically.</p>
+      ${progressionHTML}
       <div class="divider"></div>
       <div class="section-label" style="margin-bottom:12px;">Export</div>
       <button class="btn btn--secondary" id="btn-export-month-csv">📄 Export Month as CSV</button>
@@ -1134,21 +1252,8 @@ export function renderReports(App) {
 }
 
 export function initReportCharts(App) {
-  const { sessions, cycleState } = App.state;
-  const cStats = getChristinaStats(sessions);
-
-  renderStrengthProgressChart('chart-eli-strength', getEliStrengthData(sessions, cycleState));
-  renderMuscleMapChart('chart-eli-muscle', getEliMuscleStimulus(sessions, cycleState));
-  renderReadinessCard('card-eli-readiness', getEliReadiness(sessions, cycleState), 'eli');
-
-  renderChristinaMovementExposureMap(
-    'chart-christina-exposure',
-    getChristinaMovementExposure(sessions, cycleState)
-  );
-
-  renderChristinaPainDaysChart('chart-christina-pain-days', cStats.painDays);
-  renderChristinaSymptomChart('chart-christina-symptoms', cStats.symptomFreq, cStats.symptomLabels);
-  renderReadinessCard('card-christina-readiness', getChristinaReadiness(sessions, cycleState), 'christina');
+  // The unified tracker is rendered from profile-neutral session summaries.
+  // Kept as a hook for future charts that support either profile equally.
 }
 
 // ---- Cycle Review ------------------------------------------
@@ -1225,7 +1330,7 @@ export function renderCycleReview(App) {
       <p class="page-subtitle" style="margin-bottom:20px;">${formatDate(cycleState.startDate)} – ${formatDate(cycleState.endDate)}</p>
 
       <div class="reports-section">
-        <div class="section-label" style="margin-bottom:10px;">💪 Eli This Cycle</div>
+        <div class="section-label" style="margin-bottom:10px;">${userLabel(App, 'eli')} This Cycle</div>
         <div id="cycle-review-eli-readiness"></div>
       </div>
 
@@ -1234,7 +1339,7 @@ export function renderCycleReview(App) {
       ${noDataNote}
 
       <div class="reports-section" style="margin-top:24px;">
-        <div class="section-label" style="margin-bottom:10px;">💃 Christina This Cycle</div>
+        <div class="section-label" style="margin-bottom:10px;">${userLabel(App, 'christina')} This Cycle</div>
         <div id="cycle-review-christina-readiness"></div>
       </div>
 
@@ -1262,7 +1367,8 @@ function profileExerciseList(App, userId) {
   const seen = new Set();
   const out = [];
   for (const t of (App.data.routineTemplates ?? [])) {
-    if (t.user !== userId) continue;
+    // Unified profiles can use either legacy template family, so both profile
+    // checklists intentionally expose the same complete exercise pool.
     for (const slot of (t.slots ?? [])) {
       for (const id of (slot.allowedExerciseIds ?? [])) {
         if (seen.has(id)) continue;
@@ -1281,6 +1387,10 @@ function renderProfileCard(App, userId) {
   const disabled = new Set(p.disabledExerciseIds ?? []);
   const onCount = list.filter(x => !disabled.has(x.id)).length;
   const prog = p.progressionMode ?? 'cycle_review';
+  const primaryGoal = p.primaryGoal ?? 'general_fitness';
+  const secondaryGoals = new Set(p.secondaryGoals ?? []);
+  const experience = p.experienceLevel ?? 'some';
+  const adaptationPreference = p.adaptationPreference ?? 'both';
 
   const rows = list.map(x => `
     <label class="ex-toggle">
@@ -1295,6 +1405,35 @@ function renderProfileCard(App, userId) {
           <div class="input-label" style="margin-bottom:4px;">Profile name</div>
           <input class="input" id="profile-name-${userId}" value="${escapeHtml(p.displayName)}" style="max-width:240px;" aria-label="Profile name">
         </div>
+      </div>
+      <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
+        <div class="setting-row__label">Profile icon</div>
+        <div class="mode-toggle" role="group" aria-label="${escapeHtml(p.displayName)} profile icon" style="flex-wrap:wrap;">
+          ${PROFILE_ICONS.map(icon => `<button class="mode-btn ${p.icon === icon ? 'active' : ''}"
+            data-profile-icon="${userId}" data-icon="${icon}" aria-label="Use ${icon}"
+            aria-pressed="${p.icon === icon}">${icon}</button>`).join('')}
+        </div>
+      </div>
+      <div class="setting-row" style="flex-direction:column;align-items:stretch;gap:12px;">
+        <div class="setting-row__label">Training goals</div>
+        <label class="input-label" for="primary-goal-${userId}">Primary goal</label>
+        <select class="input" id="primary-goal-${userId}">
+          ${TRAINING_GOALS.map(([value,label]) => `<option value="${value}" ${primaryGoal===value?'selected':''}>${label}</option>`).join('')}
+        </select>
+        <div class="input-label">Optional secondary goals</div>
+        <div class="ex-toggle-grid">${TRAINING_GOALS.filter(([value]) => value !== primaryGoal).map(([value,label]) => `
+          <label class="ex-toggle"><input type="checkbox" data-secondary-goal="${userId}" value="${value}" ${secondaryGoals.has(value)?'checked':''}><span>${label}</span></label>`).join('')}</div>
+      </div>
+      <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
+        <div class="setting-row__label">Training experience</div>
+        <div class="mode-toggle" style="flex-wrap:wrap;">${EXPERIENCE_LEVELS.map(([value,label]) => `
+          <button class="mode-btn ${experience===value?'active':''}" data-experience="${userId}" data-value="${value}">${label}</button>`).join('')}</div>
+      </div>
+      <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
+        <div><div class="setting-row__label">Adaptation preferences</div>
+          <div class="setting-row__desc">Preferences guide recommendations; today’s capacity can always adjust the plan.</div></div>
+        <div class="mode-toggle" style="flex-wrap:wrap;">${ADAPTATION_OPTIONS.map(([value,label]) => `
+          <button class="mode-btn ${adaptationPreference===value?'active':''}" data-adaptation="${userId}" data-value="${value}">${label}</button>`).join('')}</div>
       </div>
       <div class="setting-row">
         <div>
@@ -1331,6 +1470,23 @@ export function renderSettings(App) {
   const { settings } = App.state;
   const mode = settings.musicMode ?? 'spotify';
   const theme = settings.theme ?? 'night';
+  const unavailableEquipment = new Set(settings.unavailableEquipmentIds ?? []);
+  const dumbbellIds = new Set(['modular_adjustable_weights', 'fixed_dumbbells_3kg']);
+  const hasAnyDumbbells = [...dumbbellIds].some(id => !unavailableEquipment.has(id));
+  const equipment = App.data.equipment ?? [];
+  const availableExerciseCount = (App.data.exercises ?? []).filter(ex =>
+    (ex.equipment ?? []).every(id => dumbbellIds.has(id) ? hasAnyDumbbells : !unavailableEquipment.has(id))
+  ).length;
+  const strengthGoalSelected = Object.values(settings.profiles ?? {}).some(profile =>
+    profile.primaryGoal === 'build_strength' || (profile.secondaryGoals ?? []).includes('build_strength')
+  );
+  const weightsUnavailable = unavailableEquipment.has('modular_adjustable_weights')
+    && unavailableEquipment.has('fixed_dumbbells_3kg');
+  const equipmentRows = equipment.map(item => `
+    <label class="ex-toggle">
+      <input type="checkbox" data-equipment-toggle value="${item.id}" ${unavailableEquipment.has(item.id) ? '' : 'checked'}>
+      <span>${escapeHtml(item.name)}</span>
+    </label>`).join('');
 
   return `
     <div class="page fade-in" style="padding-bottom:80px;">
@@ -1368,6 +1524,24 @@ export function renderSettings(App) {
       <div class="section-label" style="margin:20px 0 12px;">Profiles</div>
       ${renderProfileCard(App, 'eli')}
       ${renderProfileCard(App, 'christina')}
+
+      <div class="section-label" style="margin:20px 0 12px;">Available equipment</div>
+      <div class="card">
+        <div class="setting-row__desc" style="margin-bottom:12px;line-height:1.5;">
+          Turn off anything this household does not have. Exercises requiring unavailable equipment will be removed from routine choices.
+        </div>
+        <div class="setting-row__desc" style="margin-bottom:12px;">
+          ${availableExerciseCount} of ${App.data.exercises.length} exercises currently available.
+        </div>
+        ${strengthGoalSelected && weightsUnavailable ? `<div class="symptom-flag-summary" style="margin-bottom:12px;">
+          Strength is selected as a goal, but no weights are available. The app will use bodyweight strength variations where possible.
+        </div>` : ''}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+          <button class="btn btn--sm btn--secondary" id="btn-equipment-bodyweight">Bodyweight-focused</button>
+          <button class="btn btn--sm btn--ghost" id="btn-equipment-all">Enable all</button>
+        </div>
+        <div class="ex-toggle-grid">${equipmentRows}</div>
+      </div>
 
       <div class="card">
         <div class="setting-row">

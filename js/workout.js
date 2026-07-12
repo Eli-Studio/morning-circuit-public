@@ -87,17 +87,29 @@ export function adjustReps(ex, direction) {
   else                      ex.currentReps = Math.max(1, ex.currentReps - 1);
 }
 
-export function buildExercisePlan(template, allExercises, sessionCount = 0, cycleNumber = 1, weightOverrides = {}, repsOverrides = {}, profile = null) {
+export function buildExercisePlan(template, allExercises, sessionCount = 0, cycleNumber = 1, weightOverrides = {}, repsOverrides = {}, profile = null, unavailableEquipmentIds = []) {
   const exercises = [];
   const used = new Set();
   const disabled = new Set(profile?.disabledExerciseIds ?? []);
+  const unavailable = new Set(unavailableEquipmentIds ?? []);
+  const dumbbellIds = new Set(['modular_adjustable_weights', 'fixed_dumbbells_3kg']);
+  const availableDumbbells = [...dumbbellIds].filter(id => !unavailable.has(id));
+  const hasAnyDumbbells = availableDumbbells.length > 0;
+  const normalizeDumbbellIds = ids => (ids ?? []).map(id =>
+    dumbbellIds.has(id) && availableDumbbells.length === 1 ? availableDumbbells[0] : id
+  );
 
   for (const slot of template.slots) {
     const fullPool = slot.allowedExerciseIds ?? [];
-    // Drop exercises the profile has turned off. Guard: if that empties a slot,
-    // fall back to the full pool so a required slot is never left unfilled.
-    const filtered = fullPool.filter(id => !disabled.has(id));
-    const pool = filtered.length ? filtered : fullPool;
+    // Respect both per-profile exercise choices and household equipment. A
+    // missing item is never silently reintroduced to fill a required slot.
+    const pool = fullPool.filter(id => {
+      if (disabled.has(id)) return false;
+      const def = allExercises.find(ex => ex.id === id);
+      return def && (def.equipment ?? []).every(itemId =>
+        dumbbellIds.has(itemId) ? hasAnyDumbbells : !unavailable.has(itemId)
+      );
+    });
     if (!pool.length) continue;
 
     const slotType = slot.slotType ?? 'accessory';
@@ -142,8 +154,8 @@ export function buildExercisePlan(template, allExercises, sessionCount = 0, cycl
       intensity:       def.intensity      ?? 'medium',
       formCues:        def.formCues       ?? [],
       cautions:        def.cautions       ?? [],
-      equipment:       def.equipment      ?? [],
-      conflictEquipment: def.conflictEquipment ?? [],
+      equipment:       normalizeDumbbellIds(def.equipment),
+      conflictEquipment: normalizeDumbbellIds(def.conflictEquipment),
       attributes:      def.attributes     ?? [],   // mechanical demands (Christina symptom matrix)
       symptomConflicts:[],                          // filled by annotateSymptomConflicts (advisory)
       slotId:          slot.slotId,
@@ -265,6 +277,7 @@ export function createSession(users, eliRoutineId, eliRoutineType, christinaRout
     exerciseLogs:            { eli: [], christina: [] },
     eliEndCheckin:           null,
     christinaCheckin:        null,
+    profileCheckins:         {},
     christinaSymptomConflicts: [],   // advisory symptom flags captured at session build
     meditation:              null,
     notes:                   '',

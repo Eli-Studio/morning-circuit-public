@@ -44,12 +44,19 @@ export function getDefaultState() {
       musicMode:          'spotify',  // 'spotify' | 'chimes'
       theme:              'night',    // 'night' (dark, default) | 'day' (light)
       lastBackupAt:       null,       // ISO timestamp of the last full JSON export
+      unavailableEquipmentIds: [],    // household equipment intentionally turned off
       // Per-user profiles. Internal ids (eli/christina) are stable; name, baseline
       // weight, progression style, per-exercise weight overrides, and disabled
       // exercises are all editable in Settings. See SPEC_User_Profiles.md.
       profiles: {
         eli: {
-          displayName:      'Eli',
+          displayName:      'User A',
+          icon:             '🔵',
+          primaryGoal:      'general_fitness',
+          secondaryGoals:   [],
+          experienceLevel:  'some',
+          typicalDuration:  '20_30',
+          adaptationPreference: 'both',
           baselineWeightKg: 5,
           progressionMode:  'cycle_review',   // climbs via cycle review
           disabledExerciseIds: [],
@@ -61,9 +68,15 @@ export function getDefaultState() {
           }
         },
         christina: {
-          displayName:      'Christina',
+          displayName:      'User B',
+          icon:             '🟣',
+          primaryGoal:      'general_fitness',
+          secondaryGoals:   [],
+          experienceLevel:  'some',
+          typicalDuration:  '20_30',
+          adaptationPreference: 'both',
           baselineWeightKg: 3,
-          progressionMode:  'fixed',          // never prompted to increase
+          progressionMode:  'cycle_review',
           disabledExerciseIds: [],
           weightOverridesKg: {}
         }
@@ -137,13 +150,17 @@ function mergeProfiles(defProfiles, savedProfiles) {
   for (const id of Object.keys(defProfiles)) {
     const dp = defProfiles[id];
     const sp = saved[id] ?? {};
+    const legacyAdaptation = sp.trainingStyle === 'progressive' ? 'progress_when_ready'
+      : sp.trainingStyle === 'pain_adaptive' ? 'daily_capacity' : null;
     out[id] = {
       ...dp,
       ...sp,
       weightOverridesKg: { ...(dp.weightOverridesKg ?? {}), ...(sp.weightOverridesKg ?? {}) },
       disabledExerciseIds: Array.isArray(sp.disabledExerciseIds)
         ? sp.disabledExerciseIds
-        : (dp.disabledExerciseIds ?? [])
+        : (dp.disabledExerciseIds ?? []),
+      secondaryGoals: Array.isArray(sp.secondaryGoals) ? sp.secondaryGoals : (dp.secondaryGoals ?? []),
+      adaptationPreference: sp.adaptationPreference ?? legacyAdaptation ?? dp.adaptationPreference
     };
   }
   // Preserve any extra profiles a save might carry (future-proofing).

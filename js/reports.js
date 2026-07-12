@@ -331,6 +331,77 @@ export function getChristinaStats(sessions) {
   };
 }
 
+// Conservative per-profile signals from recent completed workouts. These are
+// recommendations only and never mutate weights, reps, or saved progression.
+export function getProfileProgressionSignals(sessions, userId, profile) {
+  if (profile?.adaptationPreference === 'daily_capacity') return [];
+  const recent = sessions.filter(s => s.status === 'completed' && s.users?.includes(userId)).slice(-6);
+  const byExercise = new Map();
+  for (const session of recent) {
+    const checkin = session.profileCheckins?.[userId]
+      ?? (userId === 'eli' ? session.eliEndCheckin : null) ?? {};
+    const effort = checkin.effort ?? checkin.formFatigue ?? null;
+    const pain = checkin.jointPain ?? 'no';
+    if ((effort != null && effort > 3) || !['no', 'mild'].includes(pain)) continue;
+    for (const log of session.exerciseLogs?.[userId] ?? []) {
+      if (log.skipped || !(log.setLogs?.length)) continue;
+      const weightedSets = log.setLogs.filter(set => typeof set.weightUsed === 'string' && /kg/i.test(set.weightUsed));
+      if (!weightedSets.length) continue;
+      const row = byExercise.get(log.exerciseId) ?? { exerciseId: log.exerciseId, name: log.exerciseName, sessions: 0 };
+      row.sessions++;
+      byExercise.set(log.exerciseId, row);
+    }
+  }
+  const required = profile?.experienceLevel === 'experienced' ? 2 : 3;
+  return [...byExercise.values()].filter(row => row.sessions >= required).map(row => ({
+    ...row,
+    recommendation: profile?.experienceLevel === 'new'
+      ? 'Keep the load and consider one more clean rep.'
+      : 'Consider a small rep or weight increase if form remains comfortable.',
+    reason: `${row.sessions} recent manageable sessions without concerning joint pain.`
+  }));
+}
+
+// Slot-neutral overview: either profile can pursue strength, use adaptations,
+// or do both. Older sessions remain readable through the legacy fallbacks.
+export function getProfileOverview(sessions, userId) {
+  const completed = sessions.filter(s => s.status === 'completed' && s.users?.includes(userId));
+  const checkinFor = session => session.profileCheckins?.[userId]
+    ?? (userId === 'eli' ? session.eliEndCheckin : session.christinaCheckin) ?? {};
+  const capacityFor = session => checkinFor(session).capacity ?? checkinFor(session);
+  const effortValues = completed.map(s => checkinFor(s).effort ?? checkinFor(s).formFatigue)
+    .filter(value => Number.isFinite(Number(value)) && Number(value) > 0).map(Number);
+  const adapted = completed.filter(session => {
+    const checkin = checkinFor(session);
+    if (checkin.adjustmentUsed != null) return checkin.adjustmentUsed;
+    if (checkin.adjustmentChanged != null) return checkin.adjustmentChanged;
+    if (userId === 'christina') return ['reduced', 'recovery'].includes(session.christinaAdaptationLevel);
+    return false;
+  }).length;
+  const weighted = completed.filter(session => (session.exerciseLogs?.[userId] ?? []).some(log =>
+    (log.setLogs ?? []).some(set => typeof set.weightUsed === 'string' && /kg/i.test(set.weightUsed))
+  )).length;
+  const discomfort = completed.filter(session => {
+    const value = checkinFor(session).jointPain;
+    return value && value !== 'no';
+  }).length;
+  const capacity = { low: 0, medium: 0, high: 0 };
+  completed.forEach(session => {
+    const pain = capacityFor(session).painDay;
+    if (pain in capacity) capacity[pain]++;
+  });
+  return {
+    total: completed.length,
+    adapted,
+    weighted,
+    discomfort,
+    avgEffort: effortValues.length
+      ? (effortValues.reduce((sum, value) => sum + value, 0) / effortValues.length).toFixed(1)
+      : null,
+    capacity
+  };
+}
+
 // ---- Recovery-Adjusted Growth Readiness --------------------
 
 function scoreToStatus(value, greenThreshold, yellowThreshold, higherIsBetter = true) {
