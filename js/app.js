@@ -16,7 +16,7 @@ import { buildExercisePlan, createSession, logSet, skipExercise,
 import { startTimer, stopTimer, pauseTimer, resumeTimer, isTimerPaused, skipTimer } from './timer.js';
 import { exportFullBackupJSON, exportMonthCSV, exportMonthMarkdown, exportCycleMarkdown } from './exports.js';
 import { today, showToast, formatTime, addDays, getTomorrowDate, safeSpotifyUrl } from './utils.js';
-import { DEFAULT_REST_SECONDS, ELI_HEAVY_SEQUENCE } from './config.js';
+import { DEFAULT_REST_SECONDS, ELI_HEAVY_SEQUENCE, CHRISTINA_SEQUENCE } from './config.js';
 
 import {
   renderFirstLaunch, renderHello, renderMissedDays, renderLogToday, renderSymptomCheck,
@@ -35,6 +35,9 @@ window.App = {
     currentScreen:          null,
     selectedUsers:          [],
     christinaSymptoms:      null,
+    symptomsByUser:         {},
+    pendingSymptomUsers:    [],
+    activeSymptomUser:      null,
     eliSuggestion:          null,
     christinaSuggestion:    null,
     selectedEliRoutine:     null,
@@ -143,11 +146,11 @@ function navigate(screen) {
   switch (screen) {
 
     case 'first_launch':
-      html = renderFirstLaunch();
+      html = renderFirstLaunch(App);
       break;
 
     case 'log_today':
-      html = renderLogToday();
+      html = renderLogToday(App);
       break;
 
     case 'hello':
@@ -169,7 +172,7 @@ function navigate(screen) {
     }
 
     case 'symptom_check':
-      html = renderSymptomCheck();
+      html = renderSymptomCheck(App, App.ui.activeSymptomUser ?? 'christina');
       break;
 
     case 'routine_suggestion': {
@@ -180,22 +183,38 @@ function navigate(screen) {
         let eliPlan = [], cPlan = [];
 
         if (users.includes('eli')) {
-          App.ui.eliSuggestion = getEliSuggestion(
-            App.state.cycleState, App.state.sessions, App.state.missedDays
-          );
+          const style = App.state.settings.profiles.eli.trainingStyle ?? 'progressive';
+          if (style === 'progressive') {
+            App.ui.eliSuggestion = getEliSuggestion(App.state.cycleState, App.state.sessions, App.state.missedDays);
+          } else {
+            const proxy = { ...App.state.cycleState, christinaSequencePointer: App.state.cycleState.eliSequencePointer };
+            const adaptive = getChristinaSuggestion(proxy, App.ui.symptomsByUser.eli);
+            const trackingId = ELI_HEAVY_SEQUENCE[App.state.cycleState.eliSequencePointer % ELI_HEAVY_SEQUENCE.length];
+            App.ui.eliSuggestion = {
+              primary: { ...adaptive.primary, id: trackingId,
+                templateId: adaptive.primary.templateId ?? adaptive.primary.id,
+                type: 'heavy_weight' },
+              alternatives: []
+            };
+          }
           App.ui.selectedEliRoutine = {
             id:    App.ui.eliSuggestion.primary.id,
+            templateId: App.ui.eliSuggestion.primary.templateId,
             type:  App.ui.eliSuggestion.primary.type,
             label: App.ui.eliSuggestion.primary.label
           };
           if (App.ui.selectedEliRoutine.id !== 'skip_rest') {
-            const tmpl = App.data.routineTemplates.find(t => t.id === App.ui.selectedEliRoutine.id);
+            const tmpl = App.data.routineTemplates.find(t => t.id === (App.ui.selectedEliRoutine.templateId ?? App.ui.selectedEliRoutine.id));
             if (tmpl) {
               eliPlan = buildExercisePlan(tmpl, App.data.exercises,
                 App.state.sessions.filter(s => s.users.includes('eli')).length, cycleNum,
                 App.state.cycleState?.eliExerciseWeights ?? {},
                 App.state.cycleState?.eliExerciseRepsTarget ?? {},
                 App.state.settings.profiles.eli);
+              if (style === 'pain_adaptive') {
+                eliPlan = adaptChristinaExercises(eliPlan, App.ui.symptomsByUser.eli);
+                eliPlan = annotateSymptomConflicts(eliPlan, App.ui.symptomsByUser.eli);
+              }
               App.ui.eliAnchors = App.ui.eliSuggestion.primary.type === 'heavy_weight'
                 ? getTemplateAnchors(tmpl, App.data.exercises, cycleNum) : [];
             }
@@ -206,9 +225,23 @@ function navigate(screen) {
         }
 
         if (users.includes('christina')) {
-          App.ui.christinaSuggestion = getChristinaSuggestion(
-            App.state.cycleState, App.ui.christinaSymptoms
-          );
+          const style = App.state.settings.profiles.christina.trainingStyle ?? 'pain_adaptive';
+          if (style === 'pain_adaptive') {
+            App.ui.christinaSuggestion = getChristinaSuggestion(App.state.cycleState, App.ui.symptomsByUser.christina);
+          } else {
+            const proxy = { ...App.state.cycleState,
+              eliSequencePointer: App.state.cycleState.christinaSequencePointer,
+              eliLastHeavyDate: App.state.cycleState.christinaLastActivityDate };
+            const mappedSessions = App.state.sessions.map(s => ({ ...s,
+              users: s.users.includes('christina') ? [...new Set([...s.users, 'eli'])] : s.users }));
+            const strength = getEliSuggestion(proxy, mappedSessions, App.state.missedDays);
+            const trackingId = CHRISTINA_SEQUENCE[App.state.cycleState.christinaSequencePointer % CHRISTINA_SEQUENCE.length];
+            App.ui.christinaSuggestion = {
+              primary: { ...strength.primary, id: trackingId, templateId: strength.primary.id,
+                adaptationLevel: 'normal' },
+              alternatives: []
+            };
+          }
           App.ui.selectedChristinaRoutine = {
             id:    App.ui.christinaSuggestion.primary.id,
             templateId: App.ui.christinaSuggestion.primary.templateId,
@@ -221,9 +254,9 @@ function navigate(screen) {
               let plan = buildExercisePlan(tmpl, App.data.exercises,
                 App.state.sessions.filter(s => s.users.includes('christina')).length, cycleNum,
                 {}, {}, App.state.settings.profiles.christina);
-              if (App.ui.christinaSymptoms) plan = adaptChristinaExercises(plan, App.ui.christinaSymptoms);
+              if (style === 'pain_adaptive') plan = adaptChristinaExercises(plan, App.ui.symptomsByUser.christina);
               // Advisory: flag exercises that conflict with today's active symptoms (no removal).
-              plan = annotateSymptomConflicts(plan, App.ui.christinaSymptoms);
+              plan = annotateSymptomConflicts(plan, App.ui.symptomsByUser.christina);
               cPlan = plan;
             }
           }
@@ -450,7 +483,7 @@ function setupListeners(screen) {
           }
 
           saveState(App.state);
-          const whoLabel = logUsers.length === 2 ? 'Both' : logUsers[0] === 'eli' ? 'Eli' : 'Christina';
+          const whoLabel = logUsers.length === 2 ? 'Both' : App.state.settings.profiles[logUsers[0]].displayName;
           showToast(`${whoLabel} — ${date} logged.`, 'success');
           navigate('hello');
         });
@@ -505,9 +538,15 @@ function setupListeners(screen) {
       on('btn-symptoms-done', 'click', () => {
         const symptoms = {};
         activeSymptoms.forEach(id => { symptoms[id] = 5; });
-        App.ui.christinaSymptoms = { painDay: currentPainDay, symptoms };
-        App.ui.routineSuggestionBuilt = false;
-        navigate('routine_suggestion');
+        const userId = App.ui.activeSymptomUser ?? 'christina';
+        App.ui.symptomsByUser[userId] = { painDay: currentPainDay, symptoms };
+        if (userId === 'christina') App.ui.christinaSymptoms = App.ui.symptomsByUser[userId];
+        App.ui.activeSymptomUser = App.ui.pendingSymptomUsers.shift() ?? null;
+        if (App.ui.activeSymptomUser) navigate('symptom_check');
+        else {
+          App.ui.routineSuggestionBuilt = false;
+          navigate('routine_suggestion');
+        }
       });
       break;
     }
@@ -941,6 +980,15 @@ function setupListeners(screen) {
           });
         });
 
+        document.querySelectorAll(`[data-training-style="${uid}"]`).forEach(btn => {
+          btn.addEventListener('click', () => {
+            prof().trainingStyle = btn.dataset.style;
+            prof().progressionMode = btn.dataset.style === 'progressive' ? 'cycle_review' : 'fixed';
+            saveState(App.state);
+            navigate('settings');
+          });
+        });
+
         document.querySelectorAll(`[data-ex-toggle="${uid}"]`).forEach(cb => {
           cb.addEventListener('change', () => {
             const p = prof();
@@ -1129,7 +1177,13 @@ function saveMissedDaysAndContinue() {
 }
 
 function afterMissedDays() {
-  if (App.ui.selectedUsers.includes('christina')) {
+  const adaptiveUsers = App.ui.selectedUsers.filter(userId =>
+    App.state.settings.profiles[userId].trainingStyle === 'pain_adaptive'
+  );
+  App.ui.symptomsByUser = {};
+  App.ui.activeSymptomUser = adaptiveUsers.shift() ?? null;
+  App.ui.pendingSymptomUsers = adaptiveUsers;
+  if (App.ui.activeSymptomUser) {
     navigate('symptom_check');
   } else {
     App.ui.routineSuggestionBuilt = false;
@@ -1152,16 +1206,22 @@ function buildWorkoutState() {
   let eliExercises = [], christinaExercises = [];
 
   if (users.includes('eli') && eliR?.id && eliR.id !== 'skip_rest') {
-    const tmpl = App.data.routineTemplates.find(t => t.id === eliR.id);
-    if (tmpl) eliExercises = buildExercisePlan(tmpl, App.data.exercises, eliSessionCount, cycleNum, App.state.cycleState?.eliExerciseWeights ?? {}, App.state.cycleState?.eliExerciseRepsTarget ?? {}, App.state.settings.profiles.eli);
+    const tmpl = App.data.routineTemplates.find(t => t.id === (eliR.templateId ?? eliR.id));
+    if (tmpl) {
+      eliExercises = buildExercisePlan(tmpl, App.data.exercises, eliSessionCount, cycleNum, App.state.cycleState?.eliExerciseWeights ?? {}, App.state.cycleState?.eliExerciseRepsTarget ?? {}, App.state.settings.profiles.eli);
+      if (App.state.settings.profiles.eli.trainingStyle === 'pain_adaptive') {
+        eliExercises = adaptChristinaExercises(eliExercises, App.ui.symptomsByUser.eli);
+        eliExercises = annotateSymptomConflicts(eliExercises, App.ui.symptomsByUser.eli);
+      }
+    }
   }
 
   if (users.includes('christina') && christR?.id && christR.id !== 'skip_rest') {
     const tmpl = App.data.routineTemplates.find(t => t.id === (christR.templateId ?? christR.id));
     if (tmpl) {
       let plan = buildExercisePlan(tmpl, App.data.exercises, cSessionCount, cycleNum, {}, {}, App.state.settings.profiles.christina);
-      if (App.ui.christinaSymptoms) plan = adaptChristinaExercises(plan, App.ui.christinaSymptoms);
-      christinaExercises = annotateSymptomConflicts(plan, App.ui.christinaSymptoms);
+      if (App.state.settings.profiles.christina.trainingStyle === 'pain_adaptive') plan = adaptChristinaExercises(plan, App.ui.symptomsByUser.christina);
+      christinaExercises = annotateSymptomConflicts(plan, App.ui.symptomsByUser.christina);
     }
   }
 
@@ -1189,8 +1249,8 @@ function buildWorkoutState() {
   App.workoutState = {
     mode,
     activeUser: users[0],
-    eli:      userState(eliExercises,      eliR?.id),
-    christina:userState(christinaExercises, christR?.id),
+    eli:      userState(eliExercises,      eliR?.templateId ?? eliR?.id),
+    christina:userState(christinaExercises, christR?.templateId ?? christR?.id),
     restActive:      false,
     restTotalSeconds:0
   };
@@ -1203,6 +1263,10 @@ function buildWorkoutState() {
     christR?.level ?? null,
     App.state.cycleState?.cycleId ?? null
   );
+  App.currentSession.profileCheckins = Object.fromEntries(users.map(userId => [userId, {
+    trainingStyle: App.state.settings.profiles[userId].trainingStyle,
+    ...(App.ui.symptomsByUser[userId] ?? {})
+  }]));
 
   // Capture advisory symptom conflicts on the session for later visibility
   // (rides along in the JSON backup; lets us see how often conflicts occur).

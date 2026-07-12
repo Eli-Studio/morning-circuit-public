@@ -49,7 +49,8 @@ export function getDefaultState() {
       // exercises are all editable in Settings. See SPEC_User_Profiles.md.
       profiles: {
         eli: {
-          displayName:      'Eli',
+          displayName:      'User A',
+          trainingStyle:    'progressive',
           baselineWeightKg: 5,
           progressionMode:  'cycle_review',   // climbs via cycle review
           disabledExerciseIds: [],
@@ -61,7 +62,8 @@ export function getDefaultState() {
           }
         },
         christina: {
-          displayName:      'Christina',
+          displayName:      'User B',
+          trainingStyle:    'pain_adaptive',
           baselineWeightKg: 3,
           progressionMode:  'fixed',          // never prompted to increase
           disabledExerciseIds: [],

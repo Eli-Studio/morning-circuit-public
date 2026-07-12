@@ -265,6 +265,7 @@ export function createSession(users, eliRoutineId, eliRoutineType, christinaRout
     exerciseLogs:            { eli: [], christina: [] },
     eliEndCheckin:           null,
     christinaCheckin:        null,
+    profileCheckins:         {},
     christinaSymptomConflicts: [],   // advisory symptom flags captured at session build
     meditation:              null,
     notes:                   '',

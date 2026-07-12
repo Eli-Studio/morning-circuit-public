@@ -27,10 +27,9 @@ function symptomConflictBadge(ex) {
 }
 
 // User display helpers — single source of truth for names/emoji
-const USER_LABEL = {
-  eli:      '💪 Eli',
-  christina:'💃 Christina'
-};
+const userName = (App, id) => App?.state?.settings?.profiles?.[id]?.displayName
+  ?? (id === 'eli' ? 'User A' : 'User B');
+const userLabel = (App, id) => `${id === 'eli' ? '💪' : '💃'} ${escapeHtml(userName(App, id))}`;
 
 // ---- Shared Nav -------------------------------------------
 
@@ -54,7 +53,7 @@ function bottomNav(active) {
 
 // ---- 1. First Launch --------------------------------------
 
-export function renderFirstLaunch() {
+export function renderFirstLaunch(App) {
   const tomorrow = getTomorrowDate();
   return `
     <div class="page page--no-nav fade-in">
@@ -62,7 +61,7 @@ export function renderFirstLaunch() {
         <div class="eyebrow">Welcome</div>
         <h1 class="page-title" style="margin-top:8px;">Morning Circuit</h1>
         <p class="page-subtitle" style="margin-top:12px;">
-          Daily training for Eli &amp; Christina.<br>Set your cycle start date to begin.
+          Daily training for ${escapeHtml(userName(App, 'eli'))} &amp; ${escapeHtml(userName(App, 'christina'))}.<br>Set your cycle start date to begin.
         </p>
       </div>
       <div style="margin-top:48px;">
@@ -167,12 +166,12 @@ export function renderHello(state, backupNudgeDismissed = false) {
       <div class="who-grid" style="margin-top:14px;flex:1;min-height:0;">
         <button class="who-card who-card--eli" data-who="eli">
           <div class="who-card__emoji">💪</div>
-          <div class="who-card__name">Eli</div>
+          <div class="who-card__name">${escapeHtml(settings.profiles.eli.displayName)}</div>
           <div class="who-card__next">${eliNextLabel}</div>
         </button>
         <button class="who-card who-card--christina" data-who="christina">
           <div class="who-card__emoji">💃</div>
-          <div class="who-card__name">Christina</div>
+          <div class="who-card__name">${escapeHtml(settings.profiles.christina.displayName)}</div>
           <div class="who-card__next">${cNextLabel}</div>
         </button>
       </div>
@@ -190,11 +189,11 @@ export function renderHello(state, backupNudgeDismissed = false) {
       <div class="hello-stats" style="margin-top:12px;">
         <div class="hello-stat">
           <div class="hello-stat__value" style="color:var(--eli);">${eliSessions}</div>
-          <div class="hello-stat__label">Eli sessions</div>
+          <div class="hello-stat__label">${escapeHtml(settings.profiles.eli.displayName)} sessions</div>
         </div>
         <div class="hello-stat">
           <div class="hello-stat__value" style="color:var(--christina);">${christSessions}</div>
-          <div class="hello-stat__label">Christina sessions</div>
+          <div class="hello-stat__label">${escapeHtml(settings.profiles.christina.displayName)} sessions</div>
         </div>
         <div class="hello-stat">
           <div class="hello-stat__value">${dayNum}/28</div>
@@ -260,7 +259,7 @@ export function renderMissedDays(missedDates) {
 
 // ---- 3b. Log Today ----------------------------------------
 
-export function renderLogToday() {
+export function renderLogToday(App) {
   const todayStr = today();
   const cats = [
     { id:'skip_rest',   icon:'😴', label:'Skip / Rest'  },
@@ -290,13 +289,13 @@ export function renderLogToday() {
           style="flex:1;padding:14px 8px;border-radius:12px;cursor:pointer;
                  font-size:0.95rem;font-weight:400;line-height:1.3;
                  border:1px solid var(--border);background:var(--surface);color:var(--text-2);">
-          💪<br>Eli
+          💪<br>${escapeHtml(userName(App, 'eli'))}
         </button>
         <button data-log-who="christina" id="log-who-christina"
           style="flex:1;padding:14px 8px;border-radius:12px;cursor:pointer;
                  font-size:0.95rem;font-weight:400;line-height:1.3;
                  border:1px solid var(--border);background:var(--surface);color:var(--text-2);">
-          💃<br>Christina
+          💃<br>${escapeHtml(userName(App, 'christina'))}
         </button>
       </div>
 
@@ -321,10 +320,10 @@ export function renderLogToday() {
 // screen, reports, and conflict matrix can never drift apart again.
 const SYMPTOM_CLUSTERS = CHRISTINA_SYMPTOMS;
 
-export function renderSymptomCheck() {
+export function renderSymptomCheck(App, userId = 'christina') {
   return `
     <div class="page page--no-nav fade-in">
-      <div class="eyebrow eyebrow--christina">💃 Christina</div>
+      <div class="eyebrow eyebrow--christina">${userLabel(App, userId)}</div>
       <h1 class="page-title" style="margin-top:6px;">How are you feeling?</h1>
       <p class="page-subtitle" style="margin-bottom:28px;">Quick check — this shapes today's routine.</p>
 
@@ -424,7 +423,7 @@ export function renderRoutineSuggestion(App) {
 
   const eliSection = selectedUsers.includes('eli') && eliSuggestion ? `
     <div class="reports-section">
-      <div class="section-label" style="margin-bottom:12px;">💪 Eli</div>
+      <div class="section-label" style="margin-bottom:12px;">${userLabel(App, 'eli')}</div>
       <div class="suggestion-card suggestion-card--eli">
         <div class="eyebrow" style="margin-bottom:6px;">
           ${eliSuggestion.primary.type === 'heavy_weight' ? '🏋️ Heavy' : '⚡ Circuit'}
@@ -451,7 +450,7 @@ export function renderRoutineSuggestion(App) {
 
   const christinaSection = selectedUsers.includes('christina') && christinaSuggestion ? `
     <div class="reports-section" style="margin-top:20px;">
-      <div class="section-label" style="margin-bottom:12px;">💃 Christina</div>
+      <div class="section-label" style="margin-bottom:12px;">${userLabel(App, 'christina')}</div>
       <div class="suggestion-card suggestion-card--christina">
         <div class="eyebrow eyebrow--christina" style="margin-bottom:6px;">
           ${christinaSuggestion.primary.adaptationLevel === 'recovery' ? 'Recovery'
@@ -575,7 +574,7 @@ function renderRepsStepper(ex, user) {
  */
 function renderSingleUserPanel(ws, user) {
   const us = ws[user];
-  const label = USER_LABEL[user];
+  const label = userLabel(App, user);
 
   if (us.completed) {
     return `
@@ -772,7 +771,7 @@ export function renderWorkoutRunner(App) {
     <div class="workout-screen">
       <div class="workout-header">
         <span class="workout-header__label">
-          ${USER_LABEL[user]} · Ex ${exNum}/${exTotal}
+          ${userLabel(App, user)} · Ex ${exNum}/${exTotal}
         </span>
         <div style="display:flex;align-items:center;gap:8px;">
           ${spotifyPill}
@@ -878,9 +877,9 @@ export function renderEndCheckin(App) {
 
   const summaryLines = [
     includesEli && eliRoutineLabel
-      ? `<div>💪 <strong>Eli:</strong> ${escapeHtml(eliRoutineLabel)}</div>` : '',
+      ? `<div>💪 <strong>${escapeHtml(userName(App, 'eli'))}:</strong> ${escapeHtml(eliRoutineLabel)}</div>` : '',
     includesChristina && christinaRoutineLabel
-      ? `<div>💃 <strong>Christina:</strong> ${escapeHtml(christinaRoutineLabel)}</div>` : '',
+      ? `<div>💃 <strong>${escapeHtml(userName(App, 'christina'))}:</strong> ${escapeHtml(christinaRoutineLabel)}</div>` : '',
     durationMin
       ? `<div style="margin-top:6px;color:var(--text-2);">Duration: ${durationMin} min</div>` : ''
   ].filter(Boolean).join('');
@@ -893,7 +892,7 @@ export function renderEndCheckin(App) {
 
   const eliSection = includesEli ? `
     <div class="reports-section">
-      <div class="section-label" style="margin-bottom:12px;">💪 Eli — Form Check</div>
+      <div class="section-label" style="margin-bottom:12px;">${userLabel(App, 'eli')} — Form Check</div>
       <div class="section-label" style="margin-bottom:8px;">Form fatigue this session</div>
       <div class="fatigue-scale" id="fatigue-scale">
         ${FATIGUE_SCALE.map(f => `
@@ -929,7 +928,7 @@ export function renderEndCheckin(App) {
 
   const christinaSection = includesChristina ? `
     <div class="reports-section" style="${includesEli?'margin-top:24px;':''}">
-      <div class="section-label" style="margin-bottom:12px;">💃 Christina — Check-In</div>
+      <div class="section-label" style="margin-bottom:12px;">${userLabel(App, 'christina')} — Check-In</div>
       <div class="input-group">
         <label class="input-label" for="christina-notes">How was that? (optional)</label>
         <textarea class="input" id="christina-notes"
@@ -1000,10 +999,10 @@ export function renderSessionSummary(App) {
   const calHTML = renderCalendarHTML(year, month, calData);
 
   const eliLine = snap.users?.includes('eli') && snap.eliRoutineId
-    ? `<div>💪 <strong>Eli:</strong> ${escapeHtml(snap.eliRoutineId.replace(/eli_/g,'').replace(/_/g,' '))}</div>`
+    ? `<div>💪 <strong>${escapeHtml(userName(App, 'eli'))}:</strong> ${escapeHtml(snap.eliRoutineId.replace(/eli_/g,'').replace(/_/g,' '))}</div>`
     : '';
   const cLine = snap.users?.includes('christina') && snap.christinaRoutineId
-    ? `<div>💃 <strong>Christina:</strong> ${escapeHtml(snap.christinaRoutineId.replace(/christina_/g,'').replace(/_/g,' '))} (${snap.christinaAdaptationLevel ?? ''})</div>`
+    ? `<div>💃 <strong>${escapeHtml(userName(App, 'christina'))}:</strong> ${escapeHtml(snap.christinaRoutineId.replace(/christina_/g,'').replace(/_/g,' '))} (${snap.christinaAdaptationLevel ?? ''})</div>`
     : '';
 
   const summaryCard = (eliLine || cLine || snap.meditation?.completed)
@@ -1015,9 +1014,9 @@ export function renderSessionSummary(App) {
 
   const legendHtml = `
     <div class="legend">
-      <div class="legend-item"><div class="legend-dot" style="background:${ACTIVITY_COLORS.eli_heavy}"></div>Eli Heavy</div>
+      <div class="legend-item"><div class="legend-dot" style="background:${ACTIVITY_COLORS.eli_heavy}"></div>${escapeHtml(userName(App, 'eli'))} strength</div>
       <div class="legend-item"><div class="legend-dot" style="background:${ACTIVITY_COLORS.eli_circuit}"></div>Circuit</div>
-      <div class="legend-item"><div class="legend-dot" style="background:${ACTIVITY_COLORS.christina_normal}"></div>Christina Full</div>
+      <div class="legend-item"><div class="legend-dot" style="background:${ACTIVITY_COLORS.christina_normal}"></div>${escapeHtml(userName(App, 'christina'))} full</div>
       <div class="legend-item"><div class="legend-dot" style="background:${ACTIVITY_COLORS.christina_reduced}"></div>Adapted</div>
       <div class="legend-item"><div class="legend-dot" style="background:${ACTIVITY_COLORS.meditation}"></div>Meditation</div>
       <div class="legend-item"><div class="legend-dot" style="background:${ACTIVITY_COLORS.skip_rest}"></div>Rest</div>
@@ -1070,7 +1069,7 @@ export function renderReports(App) {
       ${calHTML}
       <div class="divider"></div>
 
-      <div class="section-label" style="margin-bottom:12px;">💪 Eli</div>
+      <div class="section-label" style="margin-bottom:12px;">${userLabel(App, 'eli')}</div>
       <div class="stats-grid">
         <div class="stat-card"><div class="stat-card__value" style="color:var(--eli);">${eliStats.total}</div><div class="stat-card__label">Total sessions</div></div>
         <div class="stat-card"><div class="stat-card__value" style="color:var(--eli);">${eliStats.heavy}</div><div class="stat-card__label">Heavy sessions</div></div>
@@ -1088,7 +1087,7 @@ export function renderReports(App) {
 
       <div class="divider"></div>
 
-           <div class="section-label" style="margin-bottom:12px;">💃 Christina</div>
+           <div class="section-label" style="margin-bottom:12px;">${userLabel(App, 'christina')}</div>
       <div class="stats-grid">
         <div class="stat-card"><div class="stat-card__value" style="color:var(--christina);">${cStats.total}</div><div class="stat-card__label">Total sessions</div></div>
         <div class="stat-card"><div class="stat-card__value" style="color:var(--christina);">${cStats.normal}</div><div class="stat-card__label">Full intensity</div></div>
@@ -1115,7 +1114,7 @@ export function renderReports(App) {
 
       <div class="section-label" style="margin-top:16px;margin-bottom:8px;">Top Symptoms This Cycle</div>
       <p class="text-muted text-sm" style="margin-bottom:8px;margin-top:-4px;">
-        Frequency summary across logged Christina sessions.
+        Frequency summary across logged ${escapeHtml(userName(App, 'christina'))} sessions.
       </p>
       <div class="chart-wrap"><canvas id="chart-christina-symptoms"></canvas></div>
 
@@ -1225,7 +1224,7 @@ export function renderCycleReview(App) {
       <p class="page-subtitle" style="margin-bottom:20px;">${formatDate(cycleState.startDate)} – ${formatDate(cycleState.endDate)}</p>
 
       <div class="reports-section">
-        <div class="section-label" style="margin-bottom:10px;">💪 Eli This Cycle</div>
+        <div class="section-label" style="margin-bottom:10px;">${userLabel(App, 'eli')} This Cycle</div>
         <div id="cycle-review-eli-readiness"></div>
       </div>
 
@@ -1234,7 +1233,7 @@ export function renderCycleReview(App) {
       ${noDataNote}
 
       <div class="reports-section" style="margin-top:24px;">
-        <div class="section-label" style="margin-bottom:10px;">💃 Christina This Cycle</div>
+        <div class="section-label" style="margin-bottom:10px;">${userLabel(App, 'christina')} This Cycle</div>
         <div id="cycle-review-christina-readiness"></div>
       </div>
 
@@ -1281,6 +1280,7 @@ function renderProfileCard(App, userId) {
   const disabled = new Set(p.disabledExerciseIds ?? []);
   const onCount = list.filter(x => !disabled.has(x.id)).length;
   const prog = p.progressionMode ?? 'cycle_review';
+  const trainingStyle = p.trainingStyle ?? (userId === 'eli' ? 'progressive' : 'pain_adaptive');
 
   const rows = list.map(x => `
     <label class="ex-toggle">
@@ -1294,6 +1294,22 @@ function renderProfileCard(App, userId) {
         <div style="flex:1;">
           <div class="input-label" style="margin-bottom:4px;">Profile name</div>
           <input class="input" id="profile-name-${userId}" value="${escapeHtml(p.displayName)}" style="max-width:240px;" aria-label="Profile name">
+        </div>
+      </div>
+      <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
+        <div>
+          <div class="setting-row__label">Training style</div>
+          <div class="setting-row__desc">${trainingStyle === 'progressive'
+            ? 'Progressive strength rotation with cycle-based load review.'
+            : 'Pain-adaptive rotation scaled after a daily symptom check-in.'}</div>
+        </div>
+        <div class="mode-toggle" role="group" aria-label="${escapeHtml(p.displayName)} training style">
+          <button class="mode-btn ${trainingStyle === 'progressive' ? 'active' : ''}"
+                  data-training-style="${userId}" data-style="progressive"
+                  aria-pressed="${trainingStyle === 'progressive'}">Progressive strength</button>
+          <button class="mode-btn ${trainingStyle === 'pain_adaptive' ? 'active' : ''}"
+                  data-training-style="${userId}" data-style="pain_adaptive"
+                  aria-pressed="${trainingStyle === 'pain_adaptive'}">Pain-adaptive</button>
         </div>
       </div>
       <div class="setting-row">
