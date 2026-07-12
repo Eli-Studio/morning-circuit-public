@@ -411,9 +411,26 @@ function setupListeners(screen) {
   switch (screen) {
 
     case 'first_launch':
+      on('btn-onboard-bodyweight', 'click', () => {
+        const keep = new Set(['open_space', 'yoga_mats', 'adjustable_bench']);
+        document.querySelectorAll('[data-onboard-equipment]').forEach(cb => { cb.checked = keep.has(cb.value); });
+      });
+      on('btn-onboard-all-equipment', 'click', () => {
+        document.querySelectorAll('[data-onboard-equipment]').forEach(cb => { cb.checked = true; });
+      });
       on('btn-launch', 'click', () => {
         const dateEl = get('launch-date');
         const launch = dateEl?.value || getTomorrowDate();
+        ['eli','christina'].forEach(userId => {
+          const profile = App.state.settings.profiles[userId];
+          profile.displayName = get(`onboard-name-${userId}`)?.value.trim() || profile.displayName;
+          profile.primaryGoal = get(`onboard-goal-${userId}`)?.value || 'general_fitness';
+          profile.experienceLevel = get(`onboard-experience-${userId}`)?.value || 'some';
+          profile.adaptationPreference = get(`onboard-adaptation-${userId}`)?.value || 'both';
+          profile.progressionMode = profile.adaptationPreference === 'daily_capacity' ? 'fixed' : 'cycle_review';
+        });
+        App.state.settings.unavailableEquipmentIds = [...document.querySelectorAll('[data-onboard-equipment]')]
+          .filter(cb => !cb.checked).map(cb => cb.value);
         App.state.settings.launchDate        = launch;
         App.state.settings.currentCycleStart = launch;
         App.state.cycleState = initCycleFromLaunchDate(launch);

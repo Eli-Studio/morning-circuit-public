@@ -72,16 +72,45 @@ function bottomNav(active) {
 
 export function renderFirstLaunch(App) {
   const tomorrow = getTomorrowDate();
+  const profileSetup = userId => {
+    const p = App.state.settings.profiles[userId];
+    return `<div class="card" style="margin-bottom:12px;">
+      <div class="setting-row__label" style="margin-bottom:12px;">${userLabel(App, userId)}</div>
+      <div class="input-group"><label class="input-label" for="onboard-name-${userId}">Profile name</label>
+        <input class="input" id="onboard-name-${userId}" value="${escapeHtml(p.displayName)}" maxlength="80"></div>
+      <div class="input-group"><label class="input-label" for="onboard-goal-${userId}">Primary training goal</label>
+        <select class="input" id="onboard-goal-${userId}">${TRAINING_GOALS.map(([value,label]) => `<option value="${value}" ${p.primaryGoal===value?'selected':''}>${label}</option>`).join('')}</select></div>
+      <div class="input-group"><label class="input-label" for="onboard-experience-${userId}">Training experience</label>
+        <select class="input" id="onboard-experience-${userId}">${EXPERIENCE_LEVELS.map(([value,label]) => `<option value="${value}" ${p.experienceLevel===value?'selected':''}>${label}</option>`).join('')}</select></div>
+      <div class="input-group" style="margin-bottom:0;"><label class="input-label" for="onboard-adaptation-${userId}">Training approach</label>
+        <select class="input" id="onboard-adaptation-${userId}">${ADAPTATION_OPTIONS.map(([value,label]) => `<option value="${value}" ${p.adaptationPreference===value?'selected':''}>${label}</option>`).join('')}</select>
+        <div class="setting-row__desc" style="margin-top:6px;">“Use both” supports progression while adapting individual workouts to daily capacity.</div></div>
+    </div>`;
+  };
+  const unavailable = new Set(App.state.settings.unavailableEquipmentIds ?? []);
+  const equipmentSetup = (App.data.equipment ?? []).map(item => `<label class="ex-toggle">
+    <input type="checkbox" data-onboard-equipment value="${item.id}" ${unavailable.has(item.id)?'':'checked'}><span>${escapeHtml(item.name)}</span></label>`).join('');
   return `
     <div class="page page--no-nav fade-in">
-      <div style="margin-top:48px;">
+      <div style="margin-top:24px;">
         <div class="eyebrow">Welcome</div>
         <h1 class="page-title" style="margin-top:8px;">Morning Circuit</h1>
         <p class="page-subtitle" style="margin-top:12px;">
-          Daily training for ${escapeHtml(userName(App, 'eli'))} &amp; ${escapeHtml(userName(App, 'christina'))}.<br>Set your cycle start date to begin.
+          Set up two flexible profiles. You can change everything later in Settings.
         </p>
       </div>
-      <div style="margin-top:48px;">
+      <div style="margin-top:28px;">
+        <div class="section-label" style="margin-bottom:12px;">Profiles</div>
+        ${profileSetup('eli')}${profileSetup('christina')}
+        <div class="section-label" style="margin:24px 0 12px;">Household equipment</div>
+        <div class="card">
+          <div class="setting-row__desc" style="margin-bottom:12px;">Leave available items checked. Routines automatically avoid anything turned off.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+            <button class="btn btn--sm btn--secondary" id="btn-onboard-bodyweight">Bodyweight-focused</button>
+            <button class="btn btn--sm btn--ghost" id="btn-onboard-all-equipment">Enable all</button>
+          </div><div class="ex-toggle-grid">${equipmentSetup}</div>
+        </div>
+        <div class="section-label" style="margin:24px 0 12px;">Start cycle</div>
         <div class="input-group">
           <label class="input-label" for="launch-date">Cycle 1 Start Date</label>
           <input type="date" id="launch-date" class="input" value="${tomorrow}">
@@ -89,6 +118,8 @@ export function renderFirstLaunch(App) {
         <p class="text-muted text-sm" style="margin-bottom:32px;line-height:1.5;">
           A cycle is 28 days. Rotation tracking and reports are organized around it.
         </p>
+        <div class="card" style="margin-bottom:16px;"><div class="setting-row__label">Private by default</div>
+          <div class="setting-row__desc" style="margin-top:6px;line-height:1.5;">Profiles and workout records stay in this browser. There is no account or automatic sync. Use JSON backups regularly.</div></div>
         <button class="btn btn--primary" id="btn-launch">Start Cycle 1</button>
       </div>
     </div>
