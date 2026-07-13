@@ -4,6 +4,7 @@
 
 import { AUDIO_AVAILABLE, STORAGE_KEY } from './config.js?v=2';
 import { safeSpotifyUrl } from './utils.js';
+import { PROFILE_IDS, getActiveProfileIds } from './profiles.js';
 
 export const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -24,7 +25,11 @@ function validateBackup(state) {
     && s.defaultRestSeconds >= 30 && s.defaultRestSeconds <= 300
     && ['spotify', 'chimes'].includes(s.musicMode) && ['night', 'day'].includes(s.theme)
     && (s.spotifyUrl === '' || Boolean(safeSpotifyUrl(s.spotifyUrl)))
+    && typeof s.gettingStartedGuideCompleted === 'boolean'
     && isObject(s.profiles) && isObject(s.profiles.userA) && isObject(s.profiles.userB)
+    && Array.isArray(s.activeProfileIds) && s.activeProfileIds.length >= 1
+    && s.activeProfileIds.every(id => PROFILE_IDS.includes(id))
+    && s.activeProfileIds.includes('userA')
     && Array.isArray(state.sessions) && state.sessions.length <= 10000
     && Array.isArray(state.missedDays) && state.missedDays.length <= 10000
     && Array.isArray(state.cycleReviews) && state.cycleReviews.length <= 10000
@@ -45,6 +50,10 @@ export function getDefaultState() {
       theme:              'night',    // 'night' (dark, default) | 'day' (light)
       lastBackupAt:       null,       // ISO timestamp of the last full JSON export
       unavailableEquipmentIds: [],    // household equipment intentionally turned off
+      activeProfileIds: ['userA', 'userB'], // old saves remain in two-profile mode
+      // Defaults true so existing installs are never interrupted by a newly
+      // introduced tour. First-launch explicitly sets false for new installs.
+      gettingStartedGuideCompleted: true,
       // Per-user profiles. Internal ids (userA/userB) are stable; name, baseline
       // weight, progression style, per-exercise weight overrides, and disabled
       // exercises are all editable in Settings. See SPEC_User_Profiles.md.
@@ -211,7 +220,8 @@ function mergeAgainstDefaults(rawParsed) {
     settings:     {
       ...d.settings,
       ...(parsed.settings ?? {}),
-      profiles: mergeProfiles(d.settings.profiles, parsed.settings?.profiles)
+      profiles: mergeProfiles(d.settings.profiles, parsed.settings?.profiles),
+      activeProfileIds: getActiveProfileIds(parsed.settings)
     },
     cycleState:   mergeCycleState(d.cycleState, parsed.cycleState),
     sessions:     Array.isArray(parsed.sessions)     ? parsed.sessions     : d.sessions,
