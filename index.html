@@ -19,7 +19,7 @@
   <link rel="apple-touch-icon" sizes="167x167" href="icons/icon-167.png">
   <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png">
 
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=6">
 
   <!-- Apply saved theme before first paint to avoid a flash of the wrong theme.
        Mirrors settings.theme in localStorage['morningCircuit']. Night is default. -->
@@ -54,7 +54,7 @@
        offline-first and never phones out to a CDN. -->
   <script src="js/vendor/chart.umd.min.js"></script>
 
-  <script type="module" src="js/app.js?v=5"></script>
+  <script type="module" src="js/app.js?v=6"></script>
   <script>
     if ('serviceWorker' in navigator) window.addEventListener('load', function () {
       navigator.serviceWorker.register('./service-worker.js', { updateViaCache: 'none' });
