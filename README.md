@@ -16,4 +16,6 @@ The included workflow deploys `main` through GitHub Actions. In repository **Set
 
 Audio assets are intentionally not included in this public release. The app continues to work silently. Internal profile and routine identifiers retain their legacy names so backups remain compatible.
 
+## Licenses
+
 No open-source license has been assigned; all rights are reserved unless a license is added later.
