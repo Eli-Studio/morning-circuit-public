@@ -18,6 +18,7 @@ import { buildMonthCalendar, renderCalendarHTML, getEliStats, getChristinaStats,
          renderChristinaPainDaysChart, renderChristinaSymptomChart } from './reports.js';
 import { weightLabel } from './workout.js';
 import { ATTRIBUTE_LABELS } from './adaptation.js';
+import { getActiveProfileIds } from './profiles.js';
 
 // Advisory symptom-conflict flag shared across suggestion + runner views.
 // Renders nothing when the exercise carries no conflicts for today's symptoms.
@@ -190,12 +191,17 @@ export function renderFirstLaunch(App) {
         <div class="eyebrow">Welcome</div>
         <h1 class="page-title" style="margin-top:8px;">Movement</h1>
         <p class="page-subtitle" style="margin-top:12px;">
-          Set up two flexible profiles. You can change everything later in Settings.
+          Choose whether Movement is for you or for two people. You can add or turn off the second profile later.
         </p>
       </div>
       <div style="margin-top:28px;">
-        <div class="section-label" style="margin-bottom:12px;">Profiles</div>
-        ${profileSetup('userA')}${profileSetup('userB')}
+        <div class="section-label" style="margin-bottom:12px;">Who is using Movement?</div>
+        <div class="mode-toggle" role="group" aria-label="Number of profiles" style="margin-bottom:16px;">
+          <button class="mode-btn active" id="onboard-profile-one" data-profile-count="one" aria-pressed="true">Just me</button>
+          <button class="mode-btn" id="onboard-profile-two" data-profile-count="two" aria-pressed="false">Two people</button>
+        </div>
+        ${profileSetup('userA')}
+        <div id="onboard-second-profile" class="hidden">${profileSetup('userB')}</div>
         <div class="section-label" style="margin:24px 0 12px;">Household equipment</div>
         <div class="card">
           <div class="setting-row__desc" style="margin-bottom:12px;">Leave available items checked. Routines automatically avoid anything turned off.</div>
@@ -258,6 +264,7 @@ function backupNudgeBanner(settings, sessions, dismissed) {
 
 export function renderHello(state, backupNudgeDismissed = false) {
   const { cycleState, sessions, settings } = state;
+  const activeProfiles = getActiveProfileIds(settings);
 
   const musicMode  = settings?.musicMode ?? 'spotify';
   const spotifyUrl = safeSpotifyUrl(settings?.spotifyUrl);
@@ -302,20 +309,15 @@ export function renderHello(state, backupNudgeDismissed = false) {
 
       ${fourWeekCycle(dayNum, cycleState.cycleNumber)}
 
-      <div class="who-grid" style="margin-top:14px;flex:1;min-height:0;">
-        <button class="who-card who-card--userA" data-who="userA">
-          <div class="who-card__emoji">${userIcon({state}, 'userA')}</div>
-          <div class="who-card__name">${escapeHtml(settings.profiles.userA.displayName)}</div>
-          <div class="who-card__next">${userANextLabel}</div>
-        </button>
-        <button class="who-card who-card--userB" data-who="userB">
-          <div class="who-card__emoji">${userIcon({state}, 'userB')}</div>
-          <div class="who-card__name">${escapeHtml(settings.profiles.userB.displayName)}</div>
-          <div class="who-card__next">${cNextLabel}</div>
-        </button>
+      <div class="who-grid" style="margin-top:14px;flex:1;min-height:0;grid-template-columns:repeat(${activeProfiles.length}, 1fr);">
+        ${activeProfiles.map(userId => `<button class="who-card who-card--${userId}" data-who="${userId}">
+          <div class="who-card__emoji">${userIcon({state}, userId)}</div>
+          <div class="who-card__name">${escapeHtml(settings.profiles[userId].displayName)}</div>
+          <div class="who-card__next">${userId === 'userA' ? userANextLabel : cNextLabel}</div>
+        </button>`).join('')}
       </div>
 
-      <button class="who-card who-card--both" data-who="both"
+      ${activeProfiles.length === 2 ? `<button class="who-card who-card--both" data-who="both"
               style="margin-top:10px;width:100%;flex-direction:row;
                      gap:12px;padding:16px 20px;min-height:60px;">
         ${uiGlyph('paired')}
@@ -323,17 +325,13 @@ export function renderHello(state, backupNudgeDismissed = false) {
           <div class="who-card__name" style="font-size:1rem;">Both Together</div>
           <div class="who-card__next">Paired session</div>
         </div>
-      </button>
+      </button>` : ''}
 
-      <div class="hello-stats" style="margin-top:12px;">
-        <div class="hello-stat">
-          <div class="hello-stat__value" style="color:var(--profile-a-accent);">${userASessions}</div>
-          <div class="hello-stat__label">${escapeHtml(settings.profiles.userA.displayName)} sessions</div>
-        </div>
-        <div class="hello-stat">
-          <div class="hello-stat__value" style="color:var(--profile-b-accent);">${christSessions}</div>
-          <div class="hello-stat__label">${escapeHtml(settings.profiles.userB.displayName)} sessions</div>
-        </div>
+      <div class="hello-stats" style="margin-top:12px;grid-template-columns:repeat(${activeProfiles.length + 1}, 1fr);">
+        ${activeProfiles.map(userId => `<div class="hello-stat">
+          <div class="hello-stat__value" style="color:var(--profile-${userId === 'userA' ? 'a' : 'b'}-accent);">${userId === 'userA' ? userASessions : christSessions}</div>
+          <div class="hello-stat__label">${escapeHtml(settings.profiles[userId].displayName)} sessions</div>
+        </div>`).join('')}
         <div class="hello-stat">
           <div class="hello-stat__value">${dayNum}/28</div>
           <div class="hello-stat__label">Cycle day</div>
@@ -400,6 +398,7 @@ export function renderMissedDays(missedDates) {
 
 export function renderLogToday(App) {
   const todayStr = today();
+  const activeProfiles = getActiveProfileIds(App.state.settings);
   const cats = [
     { id:'skip_rest',   icon:'rest', label:'Skip / Rest'  },
     { id:'vr_exercise', icon:'motion', label:'VR Exercise' },
@@ -416,7 +415,7 @@ export function renderLogToday(App) {
              value="${todayStr}" max="${todayStr}"
              style="font-size:1rem;padding:12px;">
 
-      <div class="section-label" style="margin-top:16px;margin-bottom:8px;">For who?</div>
+      ${activeProfiles.length === 2 ? `<div class="section-label" style="margin-top:16px;margin-bottom:8px;">For who?</div>
       <div style="display:flex;gap:8px;">
         <button data-log-who="both" id="log-who-both"
           style="flex:1;padding:14px 8px;border-radius:12px;cursor:pointer;
@@ -436,7 +435,7 @@ export function renderLogToday(App) {
                  border:1px solid var(--border);background:var(--surface);color:var(--text-2);">
           ${userIcon(App, 'userB')}<br>${escapeHtml(userName(App, 'userB'))}
         </button>
-      </div>
+      </div>` : `<div class="card" style="margin-top:16px;"><div class="setting-row__label">For ${userLabel(App, activeProfiles[0])}</div></div>`}
 
       <div class="section-label" style="margin-top:16px;margin-bottom:8px;">What happened?</div>
       <div class="choice-grid choice-grid--2" style="gap:10px;">
@@ -1292,15 +1291,22 @@ export function renderSessionSummary(App) {
 export function renderReports(App) {
   const { state, ui } = App;
   const { sessions, missedDays, cycleState } = state;
+  const activeProfiles = getActiveProfileIds(state.settings);
+  const visibleSessions = sessions
+    .filter(s => s.users.some(id => activeProfiles.includes(id)))
+    .map(s => ({ ...s, users: s.users.filter(id => activeProfiles.includes(id)) }));
+  const visibleMissedDays = missedDays
+    .filter(m => (m.users ?? []).some(id => activeProfiles.includes(id)))
+    .map(m => ({ ...m, users: (m.users ?? []).filter(id => activeProfiles.includes(id)) }));
 
   const year  = ui.calYear  ?? new Date().getFullYear();
   const month = ui.calMonth ?? new Date().getMonth();
 
-  const calData  = buildMonthCalendar(year, month, sessions, missedDays);
+  const calData  = buildMonthCalendar(year, month, visibleSessions, visibleMissedDays);
   const calHTML  = renderCalendarHTML(year, month, calData);
   const goalLabel = value => TRAINING_GOALS.find(([id]) => id === value)?.[1] ?? 'Improve general fitness';
   const approachLabel = value => ADAPTATION_OPTIONS.find(([id]) => id === value)?.[1] ?? 'Use both';
-  const profileOverviewHTML = ['userA', 'userB'].map(userId => {
+  const profileOverviewHTML = activeProfiles.map(userId => {
     const profile = state.settings.profiles[userId];
     const stats = getProfileOverview(sessions, userId);
     const capacityTotal = stats.capacity.low + stats.capacity.medium + stats.capacity.high;
@@ -1322,7 +1328,7 @@ export function renderReports(App) {
       </div>
     </section>`;
   }).join('<div class="divider"></div>');
-  const progressionSignals = ['userA','userB'].map(userId => ({ userId,
+  const progressionSignals = activeProfiles.map(userId => ({ userId,
     rows: getProfileProgressionSignals(sessions, userId, state.settings.profiles[userId])
   }));
   const progressionHTML = progressionSignals.map(({userId, rows}) => `
@@ -1338,7 +1344,7 @@ export function renderReports(App) {
     <div class="page fade-in" style="padding-bottom:80px;">
       ${movementBrandLockup(true)}
       <h1 class="page-title" style="margin-top:14px;">Tracker</h1>
-      <p class="page-subtitle" style="margin-bottom:24px;">Cycle ${cycleState.cycleNumber} · ${sessions.length} sessions total</p>
+      <p class="page-subtitle" style="margin-bottom:24px;">Cycle ${cycleState.cycleNumber} · ${visibleSessions.length} sessions total</p>
 
       ${new URLSearchParams(window.location.search).get('cycle-demo') === 'week3' ? '<div class="demo-preview-note">Week 3 preview · Display-only sample data</div>' : ''}
       ${fourWeekCycle(cycleDayForDisplay(cycleState), cycleState.cycleNumber, 'large')}
@@ -1377,6 +1383,7 @@ export function renderCycleReview(App) {
   const snap = App.ui.cycleReviewSnapshot;
   const cycleState = snap?.cycleState ?? App.state.cycleState;
   const suggestions = App.ui.cycleProgressionSuggestions ?? [];
+  const activeProfiles = getActiveProfileIds(App.state.settings);
 
   // Weight now moves as ONE baseline across every lift (adjustable-dumbbell reality).
   const baselineRow = suggestions.find(s => s.type === 'baseline');
@@ -1444,19 +1451,19 @@ export function renderCycleReview(App) {
       <h1 class="page-title" style="margin-top:6px;">Nice work this cycle.</h1>
       <p class="page-subtitle" style="margin-bottom:20px;">${formatDate(cycleState.startDate)} – ${formatDate(cycleState.endDate)}</p>
 
-      <div class="reports-section">
+      ${activeProfiles.includes('userA') ? `<div class="reports-section">
         <div class="section-label" style="margin-bottom:10px;">${userLabel(App, 'userA')} This Cycle</div>
         <div id="cycle-review-userA-readiness"></div>
-      </div>
+      </div>` : ''}
 
-      ${baselineSection}
-      ${repsSection}
-      ${noDataNote}
+      ${activeProfiles.includes('userA') ? baselineSection : ''}
+      ${activeProfiles.includes('userA') ? repsSection : ''}
+      ${activeProfiles.includes('userA') ? noDataNote : ''}
 
-      <div class="reports-section" style="margin-top:24px;">
+      ${activeProfiles.includes('userB') ? `<div class="reports-section" style="margin-top:24px;">
         <div class="section-label" style="margin-bottom:10px;">${userLabel(App, 'userB')} This Cycle</div>
         <div id="cycle-review-userB-readiness"></div>
-      </div>
+      </div>` : ''}
 
       <div style="position:fixed;bottom:0;left:0;right:0;
                   background:var(--bg);border-top:1px solid var(--border);
@@ -1470,8 +1477,9 @@ export function renderCycleReview(App) {
 export function initCycleReviewCards(App) {
   const snap = App.ui.cycleReviewSnapshot;
   if (!snap) return;
-  renderReadinessCard('cycle-review-userA-readiness', getEliReadiness(snap.sessions, snap.cycleState), 'userA');
-  renderReadinessCard('cycle-review-userB-readiness', getChristinaReadiness(snap.sessions, snap.cycleState), 'userB');
+  const activeProfiles = getActiveProfileIds(App.state.settings);
+  if (activeProfiles.includes('userA')) renderReadinessCard('cycle-review-userA-readiness', getEliReadiness(snap.sessions, snap.cycleState), 'userA');
+  if (activeProfiles.includes('userB')) renderReadinessCard('cycle-review-userB-readiness', getChristinaReadiness(snap.sessions, snap.cycleState), 'userB');
 }
 
 // ---- 12. Settings -----------------------------------------
@@ -1580,6 +1588,7 @@ function renderProfileCard(App, userId) {
 
 export function renderSettings(App) {
   const { settings } = App.state;
+  const activeProfiles = getActiveProfileIds(settings);
   const theme = settings.theme ?? 'night';
   const unavailableEquipment = new Set(settings.unavailableEquipmentIds ?? []);
   const dumbbellIds = new Set(['modular_adjustable_weights', 'fixed_dumbbells_3kg']);
@@ -1588,7 +1597,7 @@ export function renderSettings(App) {
   const availableExerciseCount = (App.data.exercises ?? []).filter(ex =>
     (ex.equipment ?? []).every(id => dumbbellIds.has(id) ? hasAnyDumbbells : !unavailableEquipment.has(id))
   ).length;
-  const strengthGoalSelected = Object.values(settings.profiles ?? {}).some(profile =>
+  const strengthGoalSelected = activeProfiles.map(id => settings.profiles[id]).some(profile =>
     profile.primaryGoal === 'build_strength' || (profile.secondaryGoals ?? []).includes('build_strength')
   );
   const weightsUnavailable = unavailableEquipment.has('modular_adjustable_weights')
@@ -1634,7 +1643,14 @@ export function renderSettings(App) {
 
       <div class="section-label" style="margin:20px 0 12px;">Profiles</div>
       ${renderProfileCard(App, 'userA')}
-      ${renderProfileCard(App, 'userB')}
+      ${activeProfiles.includes('userB') ? `${renderProfileCard(App, 'userB')}
+        <button class="btn btn--ghost" id="btn-disable-second-profile" style="margin-top:10px;">Turn off ${escapeHtml(settings.profiles.userB.displayName)}</button>
+        <p class="text-muted text-sm" style="margin-top:8px;">Turning off a profile hides it from future workouts and reports. Its settings and history are kept.</p>`
+        : `<div class="card">
+          <div class="setting-row__label">Use Movement with someone else</div>
+          <div class="setting-row__desc" style="margin-top:6px;">Add a second profile for individual or paired workouts.</div>
+          <button class="btn btn--secondary" id="btn-enable-second-profile" style="margin-top:14px;">Add second profile</button>
+        </div>`}
 
       <div class="section-label" style="margin:20px 0 12px;">Available equipment</div>
       <div class="card">

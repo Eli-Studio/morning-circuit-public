@@ -17,6 +17,7 @@ import { startTimer, stopTimer, pauseTimer, resumeTimer, isTimerPaused, skipTime
 import { exportFullBackupJSON, exportMonthCSV, exportMonthMarkdown, exportCycleMarkdown } from './exports.js';
 import { today, showToast, formatTime, addDays, getTomorrowDate, safeSpotifyUrl } from './utils.js';
 import { DEFAULT_REST_SECONDS, USERA_HEAVY_SEQUENCE, USERB_SEQUENCE } from './config.js';
+import { getActiveProfileIds, setSecondProfileActive } from './profiles.js';
 
 import {
   renderFirstLaunch, renderHello, renderMissedDays, renderLogToday, renderSymptomCheck,
@@ -334,12 +335,14 @@ function navigate(screen) {
         cycleState: App.state.cycleState,
         sessions:   App.state.sessions
       };
+      const activeProfiles = getActiveProfileIds(App.state.settings);
       const heavyTemplates = App.data.routineTemplates.filter(t => USERA_HEAVY_SEQUENCE.includes(t.id));
-      const userAReadiness   = getEliReadiness(App.state.sessions, App.state.cycleState);
-      App.ui.cycleProgressionSuggestions = getCycleProgressionSuggestions(
-        App.state.cycleState, App.data.exercises, heavyTemplates, userAReadiness.overall,
-        App.state.settings.profiles.userA
-      );
+      const userAReadiness = getEliReadiness(App.state.sessions, App.state.cycleState);
+      App.ui.cycleProgressionSuggestions = activeProfiles.includes('userA')
+        ? getCycleProgressionSuggestions(
+          App.state.cycleState, App.data.exercises, heavyTemplates, userAReadiness.overall,
+          App.state.settings.profiles.userA
+        ) : [];
       // Pre-accept the single baseline bump when recommended — reps suggestions
       // aren't toggleable, they carry over automatically.
       App.ui.acceptedProgressionIds = new Set(
@@ -419,6 +422,17 @@ function setupListeners(screen) {
   switch (screen) {
 
     case 'first_launch':
+      document.querySelectorAll('[data-profile-count]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const twoProfiles = btn.dataset.profileCount === 'two';
+          document.querySelectorAll('[data-profile-count]').forEach(choice => {
+            const selected = choice === btn;
+            choice.classList.toggle('active', selected);
+            choice.setAttribute('aria-pressed', String(selected));
+          });
+          get('onboard-second-profile')?.classList.toggle('hidden', !twoProfiles);
+        });
+      });
       on('btn-onboard-bodyweight', 'click', () => {
         const keep = new Set(['open_space', 'yoga_mats', 'adjustable_bench']);
         document.querySelectorAll('[data-onboard-equipment]').forEach(cb => { cb.checked = keep.has(cb.value); });
@@ -429,7 +443,9 @@ function setupListeners(screen) {
       on('btn-launch', 'click', () => {
         const dateEl = get('launch-date');
         const launch = dateEl?.value || getTomorrowDate();
-        ['userA','userB'].forEach(userId => {
+        const twoProfiles = get('onboard-profile-two')?.classList.contains('active');
+        App.state.settings.activeProfileIds = twoProfiles ? ['userA', 'userB'] : ['userA'];
+        App.state.settings.activeProfileIds.forEach(userId => {
           const profile = App.state.settings.profiles[userId];
           profile.displayName = get(`onboard-name-${userId}`)?.value.trim() || profile.displayName;
           profile.primaryGoal = get(`onboard-goal-${userId}`)?.value || 'general_fitness';
@@ -452,12 +468,12 @@ function setupListeners(screen) {
       document.querySelectorAll('[data-who]').forEach(btn => {
         btn.addEventListener('click', e => {
           const who = e.currentTarget.dataset.who;
-          App.ui.selectedUsers = who === 'both' ? ['userA','userB'] : [who];
+          App.ui.selectedUsers = who === 'both' ? getActiveProfileIds(App.state.settings) : [who];
           navigate('missed_days');
         });
       });
       on('btn-skip-today', 'click', () => {
-        App.ui.selectedUsers = ['userA','userB'];
+        App.ui.selectedUsers = getActiveProfileIds(App.state.settings);
         navigate('log_today');
       });
       on('btn-hello-backup', 'click', () => {
@@ -472,11 +488,12 @@ function setupListeners(screen) {
       break;
 
     case 'log_today': {
-      let logUsers = ['userA','userB'];
+      const activeProfiles = getActiveProfileIds(App.state.settings);
+      let logUsers = [...activeProfiles];
 
       // Apply initial selected state to Both button via inline style
       const _initWhoBtn = document.getElementById('log-who-both');
-      if (_initWhoBtn) {
+      if (_initWhoBtn && activeProfiles.length === 2) {
         _initWhoBtn.style.border = '2px solid var(--action-primary)';
         _initWhoBtn.style.background = 'color-mix(in srgb, var(--action-primary) 12%, var(--surface))';
         _initWhoBtn.style.color = 'var(--action-primary)';
@@ -499,7 +516,7 @@ function setupListeners(screen) {
           t.style.color = 'var(--action-primary)';
           t.style.fontWeight = '700';
           const who = t.dataset.logWho;
-          logUsers = who === 'both' ? ['userA','userB'] : [who];
+          logUsers = who === 'both' ? [...activeProfiles] : [who];
         });
       });
 
@@ -1067,13 +1084,13 @@ function setupListeners(screen) {
         navigate('reports');
       });
       get('btn-export-month-csv')?.addEventListener('click', () => {
-        showToast(`Exported ${exportMonthCSV(App.state.sessions, App.state.missedDays, App.ui.calYear, App.ui.calMonth, App.state.settings.profiles)}`, 'success');
+        showToast(`Exported ${exportMonthCSV(App.state.sessions, App.state.missedDays, App.ui.calYear, App.ui.calMonth, App.state.settings.profiles, getActiveProfileIds(App.state.settings))}`, 'success');
       });
       get('btn-export-month-md')?.addEventListener('click', () => {
-        showToast(`Exported ${exportMonthMarkdown(App.state.sessions, App.state.missedDays, App.ui.calYear, App.ui.calMonth, App.state.settings.profiles)}`, 'success');
+        showToast(`Exported ${exportMonthMarkdown(App.state.sessions, App.state.missedDays, App.ui.calYear, App.ui.calMonth, App.state.settings.profiles, getActiveProfileIds(App.state.settings))}`, 'success');
       });
       get('btn-export-cycle')?.addEventListener('click', () => {
-        showToast(`Exported ${exportCycleMarkdown(App.state.cycleState, App.state.sessions, App.state.settings.profiles)}`, 'success');
+        showToast(`Exported ${exportCycleMarkdown(App.state.cycleState, App.state.sessions, App.state.settings.profiles, getActiveProfileIds(App.state.settings))}`, 'success');
       });
       get('btn-export-json')?.addEventListener('click', () => {
         markBackedUp();
@@ -1084,6 +1101,19 @@ function setupListeners(screen) {
 
     case 'settings': {
       // ---- Profiles ----
+      on('btn-enable-second-profile', 'click', () => {
+        setSecondProfileActive(App.state.settings, true);
+        saveState(App.state);
+        navigate('settings');
+        showToast('Second profile enabled', 'success');
+      });
+      on('btn-disable-second-profile', 'click', () => {
+        if (!confirm(`Turn off ${App.state.settings.profiles.userB.displayName}? Their settings and workout history will be kept.`)) return;
+        setSecondProfileActive(App.state.settings, false);
+        saveState(App.state);
+        navigate('settings');
+        showToast('Second profile turned off', 'success');
+      });
       ['userA', 'userB'].forEach(uid => {
         const prof = () => App.state.settings.profiles[uid];
 

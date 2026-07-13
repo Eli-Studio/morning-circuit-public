@@ -23,35 +23,38 @@ export function exportFullBackupJSON(state) {
   return filename;
 }
 
-export function exportMonthCSV(sessions, missedDays, year, month, profiles = {}) {
+export function exportMonthCSV(sessions, missedDays, year, month, profiles = {}, activeProfileIds = ['userA', 'userB']) {
   const pad   = n => String(n+1).padStart(2,'0');
   const fname = `movement-${year}-${pad(month)}.csv`;
 
   const mSessions = sessions.filter(s => {
     const d = new Date(s.date + 'T12:00:00');
-    return d.getFullYear() === year && d.getMonth() === month;
+    return d.getFullYear() === year && d.getMonth() === month
+      && s.users.some(id => activeProfileIds.includes(id));
   });
   const mMissed = missedDays.filter(m => {
     const d = new Date(m.date + 'T12:00:00');
-    return d.getFullYear() === year && d.getMonth() === month;
+    return d.getFullYear() === year && d.getMonth() === month
+      && (m.users ?? []).some(id => activeProfileIds.includes(id));
   });
 
   const q = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
   const nameA = profiles.userA?.displayName ?? 'User A';
   const nameB = profiles.userB?.displayName ?? 'User B';
-  const header = ['Date','Users','Type',`${nameA} Routine`,`${nameA} Routine Type`,`${nameB} Routine`,`${nameB} Adaptation`,'Status',`${nameA} Effort`,`${nameA} Joint Discomfort`,`${nameB} Capacity`,'Meditation','Notes'].map(q).join(',') + '\n';
+  const profileHeaders = activeProfileIds.flatMap(id => id === 'userA'
+    ? [`${nameA} Routine`, `${nameA} Routine Type`, `${nameA} Effort`, `${nameA} Joint Discomfort`]
+    : [`${nameB} Routine`, `${nameB} Adaptation`, `${nameB} Capacity`]);
+  const profileValues = s => activeProfileIds.flatMap(id => id === 'userA'
+    ? [s.userARoutineId ?? '', s.userARoutineType ?? '', s.userAEndCheckin?.formFatigue ?? '', s.userAEndCheckin?.jointPain ?? '']
+    : [s.userBRoutineId ?? '', s.userBAdaptationLevel ?? '', s.userBCheckin?.painDay ?? '']);
+  const header = ['Date','Users','Type', ...profileHeaders, 'Status','Meditation','Notes'].map(q).join(',') + '\n';
 
   let csv = header;
 
   for (const s of mSessions) {
     csv += [
-      s.date, s.users.map(id => id === 'userA' ? nameA : id === 'userB' ? nameB : id).join('+'), s.sessionType,
-      s.userARoutineId ?? '', s.userARoutineType ?? '',
-      s.userBRoutineId ?? '', s.userBAdaptationLevel ?? '',
-      s.status,
-      s.userAEndCheckin?.formFatigue ?? '',
-      s.userAEndCheckin?.jointPain   ?? '',
-      s.userBCheckin?.painDay  ?? '',
+      s.date, s.users.filter(id => activeProfileIds.includes(id)).map(id => id === 'userA' ? nameA : id === 'userB' ? nameB : id).join('+'), s.sessionType,
+      ...profileValues(s), s.status,
       s.meditation?.completed ? `${s.meditation.durationMinutes}min` : '',
       s.notes ?? ''
     ].map(q).join(',') + '\n';
@@ -59,9 +62,8 @@ export function exportMonthCSV(sessions, missedDays, year, month, profiles = {})
 
   for (const m of mMissed) {
     csv += [
-      m.date, m.users?.join('+') ?? 'unknown', 'missed',
-      '','','','', m.category,
-      '','','','', m.notes ?? ''
+      m.date, (m.users ?? []).filter(id => activeProfileIds.includes(id)).map(id => id === 'userA' ? nameA : id === 'userB' ? nameB : id).join('+') || 'unknown', 'missed',
+      ...profileHeaders.map(() => ''), m.category, '', m.notes ?? ''
     ].map(q).join(',') + '\n';
   }
 
@@ -69,18 +71,20 @@ export function exportMonthCSV(sessions, missedDays, year, month, profiles = {})
   return fname;
 }
 
-export function exportMonthMarkdown(sessions, missedDays, year, month, profiles = {}) {
+export function exportMonthMarkdown(sessions, missedDays, year, month, profiles = {}, activeProfileIds = ['userA', 'userB']) {
   const pad     = n => String(n+1).padStart(2,'0');
   const fname   = `movement-${year}-${pad(month)}.md`;
   const mName   = new Date(year, month, 1).toLocaleDateString('en-US',{ month:'long', year:'numeric' });
 
   const mSessions = sessions.filter(s => {
     const d = new Date(s.date + 'T12:00:00');
-    return d.getFullYear() === year && d.getMonth() === month;
+    return d.getFullYear() === year && d.getMonth() === month
+      && s.users.some(id => activeProfileIds.includes(id));
   });
   const mMissed = missedDays.filter(m => {
     const d = new Date(m.date + 'T12:00:00');
-    return d.getFullYear() === year && d.getMonth() === month;
+    return d.getFullYear() === year && d.getMonth() === month
+      && (m.users ?? []).some(id => activeProfileIds.includes(id));
   });
 
   const userACount = mSessions.filter(s => s.users.includes('userA')).length;
@@ -92,8 +96,8 @@ export function exportMonthMarkdown(sessions, missedDays, year, month, profiles 
   md    += `*Exported ${formatDate(today())}*\n\n---\n\n`;
   md    += `## Summary\n\n`;
   md    += `- Total sessions: ${mSessions.length}\n`;
-  md    += `- ${nameA} sessions: ${userACount}\n`;
-  md    += `- ${nameB} sessions: ${cCount}\n`;
+  if (activeProfileIds.includes('userA')) md += `- ${nameA} sessions: ${userACount}\n`;
+  if (activeProfileIds.includes('userB')) md += `- ${nameB} sessions: ${cCount}\n`;
   md    += `- Missed / other days: ${mMissed.length}\n\n---\n\n`;
   md    += `## Session Log\n\n`;
 
@@ -106,15 +110,15 @@ export function exportMonthMarkdown(sessions, missedDays, year, month, profiles 
     if (entry.kind === 'session') {
       const s = entry.data;
       md += `### ${formatDate(s.date)}\n\n`;
-      md += `**Users:** ${s.users.map(id => id === 'userA' ? nameA : id === 'userB' ? nameB : id).join(', ')}\n\n`;
-      if (s.users.includes('userA')) {
+      md += `**Users:** ${s.users.filter(id => activeProfileIds.includes(id)).map(id => id === 'userA' ? nameA : id === 'userB' ? nameB : id).join(', ')}\n\n`;
+      if (activeProfileIds.includes('userA') && s.users.includes('userA')) {
         md += `**${nameA}:** ${s.userARoutineId ?? 'No routine'} (${s.userARoutineType ?? ''})\n`;
         if (s.userAEndCheckin) {
           md += `- Form fatigue: ${s.userAEndCheckin.formFatigue}/5\n`;
           md += `- Joint pain: ${s.userAEndCheckin.jointPain ?? 'not recorded'}\n`;
         }
       }
-      if (s.users.includes('userB')) {
+      if (activeProfileIds.includes('userB') && s.users.includes('userB')) {
         md += `**${nameB}:** ${s.userBRoutineId ?? 'No routine'} (${s.userBAdaptationLevel ?? ''})\n`;
         if (s.userBCheckin?.painDay) md += `- Pain day: ${s.userBCheckin.painDay}\n`;
       }
@@ -134,7 +138,7 @@ export function exportMonthMarkdown(sessions, missedDays, year, month, profiles 
   return fname;
 }
 
-export function exportCycleMarkdown(cycleState, sessions, profiles = {}) {
+export function exportCycleMarkdown(cycleState, sessions, profiles = {}, activeProfileIds = ['userA', 'userB']) {
   const fname = `movement-${cycleState.cycleId}.md`;
 
   const cycleSessions = sessions.filter(s =>
@@ -150,25 +154,30 @@ export function exportCycleMarkdown(cycleState, sessions, profiles = {}) {
 
   let md = `# Cycle Review — ${cycleState.cycleId} (Cycle ${cycleState.cycleNumber})\n\n`;
   md    += `**Period:** ${formatDate(cycleState.startDate)} → ${formatDate(cycleState.endDate)}\n\n---\n\n`;
-  md    += `## ${nameA}\n\n`;
-  md    += `| Routine | Sessions |\n|---|---|\n`;
-  md    += `| Upper Push | ${cycleState.userAHeavyCounts.eli_upper_push} |\n`;
-  md    += `| Lower Body | ${cycleState.userAHeavyCounts.eli_lower_body} |\n`;
-  md    += `| Upper Pull | ${cycleState.userAHeavyCounts.eli_upper_pull} |\n`;
-  md    += `| Full Body  | ${cycleState.userAHeavyCounts.eli_full_body}  |\n`;
-  md    += `| Circuit    | ${cycleState.userACircuitCount}  |\n`;
-  md    += `| Cardio     | ${cycleState.userACardioCount}   |\n`;
-  md    += `| Mobility   | ${cycleState.userAMobilityCount} |\n\n`;
-  md    += `**Average form fatigue:** ${avgF}/5\n\n---\n\n`;
-  md    += `## ${nameB}\n\n`;
-  md    += `| Routine | Sessions |\n|---|---|\n`;
-  const cr = cycleState.userBRoutineCounts;
-  md    += `| Gentle Upper | ${cr.christina_gentle_upper ?? 0} |\n`;
-  md    += `| Gentle Lower | ${cr.christina_gentle_lower ?? 0} |\n`;
-  md    += `| Gentle Pull/Posture | ${cr.christina_gentle_pull_posture ?? 0} |\n`;
-  md    += `| Gentle Full Body | ${cr.christina_gentle_full_body ?? 0} |\n`;
-  md    += `| Light Movement | ${cr.christina_light_movement ?? 0} |\n`;
-  md    += `| Recovery | ${cr.christina_recovery_minimum ?? 0} |\n\n`;
+  if (activeProfileIds.includes('userA')) {
+    md += `## ${nameA}\n\n`;
+    md += `| Routine | Sessions |\n|---|---|\n`;
+    md += `| Upper Push | ${cycleState.userAHeavyCounts.eli_upper_push} |\n`;
+    md += `| Lower Body | ${cycleState.userAHeavyCounts.eli_lower_body} |\n`;
+    md += `| Upper Pull | ${cycleState.userAHeavyCounts.eli_upper_pull} |\n`;
+    md += `| Full Body  | ${cycleState.userAHeavyCounts.eli_full_body}  |\n`;
+    md += `| Circuit    | ${cycleState.userACircuitCount}  |\n`;
+    md += `| Cardio     | ${cycleState.userACardioCount}   |\n`;
+    md += `| Mobility   | ${cycleState.userAMobilityCount} |\n\n`;
+    md += `**Average form fatigue:** ${avgF}/5\n\n`;
+  }
+  if (activeProfileIds.length === 2) md += `---\n\n`;
+  if (activeProfileIds.includes('userB')) {
+    const cr = cycleState.userBRoutineCounts;
+    md += `## ${nameB}\n\n`;
+    md += `| Routine | Sessions |\n|---|---|\n`;
+    md += `| Gentle Upper | ${cr.christina_gentle_upper ?? 0} |\n`;
+    md += `| Gentle Lower | ${cr.christina_gentle_lower ?? 0} |\n`;
+    md += `| Gentle Pull/Posture | ${cr.christina_gentle_pull_posture ?? 0} |\n`;
+    md += `| Gentle Full Body | ${cr.christina_gentle_full_body ?? 0} |\n`;
+    md += `| Light Movement | ${cr.christina_light_movement ?? 0} |\n`;
+    md += `| Recovery | ${cr.christina_recovery_minimum ?? 0} |\n\n`;
+  }
 
   downloadFile(fname, md, 'text/markdown');
   return fname;
