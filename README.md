@@ -2,6 +2,8 @@
 
 A static, local-first movement practice tracker for two profiles. It includes routine rotation, timers, capacity check-ins, four-week cycle reports, and JSON/CSV/Markdown exports.
 
+Deferred engineering work and the latest review checkpoint are tracked in [NEXT_STEPS.md](NEXT_STEPS.md).
+
 ## Privacy and backups
 
 Records stay in the current browser's `localStorage`; there is no account, server, upload, or device sync. Different browsers, devices, and hostnames have separate data. Use **Settings → Full JSON Backup** regularly and restore the JSON separately on each device.

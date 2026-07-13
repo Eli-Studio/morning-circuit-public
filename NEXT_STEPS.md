@@ -1,0 +1,54 @@
+# Next Steps
+
+Review checkpoint from July 12, 2026. The current `main` branch is functional,
+deployable, and passes manual browser checks, including offline startup. These
+items are intentionally deferred for the next development session.
+
+## Priority 1 — Protect active workouts
+
+- Persist the in-progress session and workout runner state after meaningful
+  changes, including completed sets, skipped exercises, timer state, and check-ins.
+- Detect an interrupted workout during startup and offer **Resume** or **Discard**.
+- Clear the draft only after a session is finalized or explicitly discarded.
+- Add a browser test that reloads halfway through a workout and verifies that no
+  progress is lost.
+
+## Priority 2 — Align the public audio experience
+
+- Stop eagerly requesting audio files that are not included in the public build.
+- Either hide/disable chime and meditation-audio controls for the silent build, or
+  add properly licensed audio assets and include them in the service-worker cache.
+- Verify that a normal page load produces no missing-asset requests.
+
+## Priority 3 — Add release checks
+
+- Add unit tests for storage migration, cycle rotation, workout plan generation,
+  capacity adaptation, and exports.
+- Keep a legacy `0.4.x` backup fixture and test its migration to neutral profile
+  IDs (`userA` and `userB`).
+- Add data-integrity checks for duplicate IDs and missing exercise, equipment, and
+  substitution references.
+- Add a small browser smoke suite covering onboarding, a single-user workout,
+  a paired workout, reports, backup restore, and offline startup.
+- Run syntax, data, and smoke checks in GitHub Actions before Pages deployment.
+
+## Priority 4 — Hardening and cleanup
+
+- Update the persisted schema version to match the displayed app version and make
+  future migrations explicitly versioned.
+- Neutralize spreadsheet formula prefixes in user-controlled CSV fields.
+- Add accessible grouping and selected-state semantics to training-experience and
+  adaptation-preference controls.
+- Keep README compatibility wording aligned with the neutral profile-ID migration.
+
+## Verified at this checkpoint
+
+- JavaScript syntax and JSON parsing pass.
+- The data graph contains 84 exercises, 14 routines, and 7 equipment records with
+  no broken references found.
+- Legacy profile IDs migrate successfully in profiles, cycle state, sessions, and
+  exercise logs.
+- Onboarding, capacity check-in, routine suggestion, workout startup, Settings,
+  and offline reload work in browser testing.
+- No committed secrets or unexpected third-party runtime requests were found.
+
