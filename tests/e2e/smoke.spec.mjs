@@ -42,6 +42,23 @@ test('reports and settings screens render from the nav', async ({ page }) => {
   await page.screenshot({ path: `${SHOTS}/settings.png`, fullPage: true });
 });
 
+test('home uses concentric day rings while workouts use week quadrants', async ({ page }) => {
+  await onboard(page);
+
+  await expect(page.locator('.four-week-cycle--medium .cycle-ring__track')).toHaveCount(4);
+  await expect(page.locator('.four-week-cycle--medium .cycle-ring__progress')).toHaveCount(4);
+  await expect(page.locator('.four-week-cycle--medium .cycle-quadrant')).toHaveCount(0);
+
+  await page.locator('[data-guide-skip]').click();
+  await page.locator('[data-who="userA"]').click();
+  await page.locator('#btn-symptoms-done').click();
+  await page.locator('#btn-start-workout').click();
+  await page.locator('#btn-warmup-skip').click();
+
+  await expect(page.locator('.four-week-cycle--compact .cycle-quadrant')).toHaveCount(4);
+  await expect(page.locator('.four-week-cycle--compact .cycle-ring__track')).toHaveCount(0);
+});
+
 test('full JSON backup produces a download', async ({ page }) => {
   await onboard(page);
   // The full-backup export lives on the Tracker (reports) screen.

@@ -569,6 +569,16 @@ body {
 }
 .four-week-cycle__graphic { position: relative; width: 176px; flex: 0 0 176px; aspect-ratio: 1; }
 .cycle-rings { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
+.cycle-ring__track,
+.cycle-ring__progress { fill: none; vector-effect: non-scaling-stroke; }
+.cycle-ring__track { stroke: var(--cycle-planned); stroke-width: 1.15; stroke-dasharray: .8 3.2; }
+.cycle-ring__progress {
+  stroke-width: var(--cycle-ring-width-large); stroke-linecap: round;
+  transition: stroke-dasharray 450ms ease, stroke 250ms ease;
+}
+.cycle-ring__progress--completed { stroke: var(--cycle-completed); }
+.cycle-ring__progress--current { stroke: var(--cycle-current); }
+.cycle-ring__progress--planned { stroke: transparent; }
 /* One ring split into four quadrants — one per cycle week. Quadrants fill
    (yellow) as the user advances through weeks 1–4. */
 .cycle-quadrant {

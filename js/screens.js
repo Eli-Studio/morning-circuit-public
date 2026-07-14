@@ -123,24 +123,33 @@ function cycleDayForDisplay(cycleState) {
   return cycleState?.startDate ? getCycleDayNumber(cycleState) : 1;
 }
 
-// Four persistent rings map the 28-day cycle from the outside inward. Progress
-// is date-based until the data model includes a weekly session plan.
+// The home dashboard shows day-level progress across four concentric week rings.
+// Compact workout and large tracker variants use the simpler week quadrants.
 function fourWeekCycle(dayNumber, cycleNumber, size = 'medium') {
   const safeDay = Math.min(Math.max(Number(dayNumber) || 1, 1), 28);
   const currentWeek = Math.min(Math.ceil(safeDay / 7), 4);
+  const weekProgress = ((safeDay - 1) % 7 + 1) / 7;
   const weekNames = ['Foundation', 'Build', 'Intensify', 'Consolidate'];
-  // A single ring of four quadrants; quadrant N fills once the user reaches
-  // week N. pathLength=100 makes each quadrant 25 units; GAP separates them.
-  const GAP = 4;
-  const SEG = 25 - GAP;
-  const rings = Array.from({ length: 4 }, (_, index) => {
-    const week = index + 1;
-    const filled = week <= currentWeek;
-    const state = week < currentWeek ? 'completed' : week === currentWeek ? 'current' : 'planned';
-    return `<circle class="cycle-quadrant cycle-quadrant--${filled ? 'filled' : 'empty'}" cx="88" cy="88" r="70"
-      pathLength="100" stroke-dasharray="${SEG} ${100 - SEG}" stroke-dashoffset="${-index * 25}"
-      data-week="${week}" data-state="${state}"></circle>`;
-  }).join('');
+  const rings = size === 'medium'
+    ? [70, 56, 42, 28].map((radius, index) => {
+        const week = index + 1;
+        const state = week < currentWeek ? 'completed' : week === currentWeek ? 'current' : 'planned';
+        const progress = week < currentWeek ? 100 : week === currentWeek ? Math.round(weekProgress * 100) : 0;
+        return `<circle class="cycle-ring__track" cx="88" cy="88" r="${radius}" pathLength="100"></circle>
+          <circle class="cycle-ring__progress cycle-ring__progress--${state}" cx="88" cy="88" r="${radius}"
+            pathLength="100" stroke-dasharray="${progress} ${100 - progress}" data-week="${week}" data-state="${state}"></circle>`;
+      }).join('')
+    : Array.from({ length: 4 }, (_, index) => {
+        // pathLength=100 makes each quadrant 25 units; the gap separates them.
+        const week = index + 1;
+        const filled = week <= currentWeek;
+        const state = week < currentWeek ? 'completed' : week === currentWeek ? 'current' : 'planned';
+        const gap = 4;
+        const segment = 25 - gap;
+        return `<circle class="cycle-quadrant cycle-quadrant--${filled ? 'filled' : 'empty'}" cx="88" cy="88" r="70"
+          pathLength="100" stroke-dasharray="${segment} ${100 - segment}" stroke-dashoffset="${-index * 25}"
+          data-week="${week}" data-state="${state}"></circle>`;
+      }).join('');
   const description = `Cycle ${cycleNumber}, week ${currentWeek} of 4, ${weekNames[currentWeek - 1]}. Day ${safeDay} of 28.`;
   if (size === 'text') {
     return `<p class="four-week-cycle-text"><strong>Week ${currentWeek} of 4 · ${weekNames[currentWeek - 1]}</strong><span>Day ${safeDay} of 28 · Cycle ${cycleNumber}</span></p>`;
