@@ -9,7 +9,7 @@
   <img alt="Vanilla JS" src="https://img.shields.io/badge/vanilla-JS-informational">
 </p>
 
-### ▶︎ [Try the live demo](https://eli-studio.github.io/morning-circuit-public/)
+### ▶︎ [Try the live demo](https://eli-studio.github.io/movement-practice/)
 
 <p>
   <img src="docs/screenshots/dashboard.jpg" alt="Home dashboard showing cycle progress and today's routine" width="260">
