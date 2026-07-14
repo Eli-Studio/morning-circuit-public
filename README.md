@@ -80,6 +80,10 @@ Pushing to `main` deploys via GitHub Actions. In **Settings → Pages**, set **S
 
 Audio assets are intentionally excluded from this public build: the app never requests missing files, chime controls are hidden, and warm-up/meditation timers run silently. Public content identifiers use neutral `strength_*` / `adaptive_*` namespaces, and older backups are migrated by structure so their history stays usable.
 
+## Changelog
+
+Release history is in [CHANGELOG.md](CHANGELOG.md).
+
 ## License
 
 [MIT](LICENSE) © 2026 Eli Duffy.
