@@ -991,8 +991,12 @@ function setupListeners(screen) {
     }
 
     case 'warmup': {
-      const WARMUP_SECONDS = 300;
       let warmupInterval = null;
+
+      const warmupMinutes = () => {
+        const raw = Number(get('warmup-minutes')?.value) || 5;
+        return Math.min(Math.max(raw, 5), 15);
+      };
 
       const finish = (withChime) => {
         clearInterval(warmupInterval);
@@ -1001,6 +1005,12 @@ function setupListeners(screen) {
         navigate('workout_runner');
       };
 
+      // Live-update the length label as the slider moves.
+      get('warmup-minutes')?.addEventListener('input', () => {
+        const label = get('warmup-minutes-label');
+        if (label) label.textContent = `${warmupMinutes()} min`;
+      });
+
       on('btn-warmup-skip', 'click', () => {
         unlockAudio();
         navigate('workout_runner');
@@ -1008,13 +1018,14 @@ function setupListeners(screen) {
 
       on('btn-warmup-begin', 'click', () => {
         unlockAudio();
-        playMeditation(5, App.state.settings.audioEnabled);
+        const minutes = warmupMinutes();
+        playMeditation(minutes, App.state.settings.audioEnabled);
 
         get('warmup-start-wrap')?.style.setProperty('display','none');
         const wrap = get('warmup-timer-wrap');
         if (wrap) wrap.style.display = 'block';
 
-        let remaining = WARMUP_SECONDS;
+        let remaining = minutes * 60;
         const el  = get('warmup-timer');
         const tick = () => { if (el) el.textContent = formatTime(remaining); };
         tick();

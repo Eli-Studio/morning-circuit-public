@@ -128,16 +128,18 @@ function cycleDayForDisplay(cycleState) {
 function fourWeekCycle(dayNumber, cycleNumber, size = 'medium') {
   const safeDay = Math.min(Math.max(Number(dayNumber) || 1, 1), 28);
   const currentWeek = Math.min(Math.ceil(safeDay / 7), 4);
-  const weekProgress = ((safeDay - 1) % 7 + 1) / 7;
-  const radii = [70, 56, 42, 28];
   const weekNames = ['Foundation', 'Build', 'Intensify', 'Consolidate'];
-  const rings = radii.map((radius, index) => {
+  // A single ring of four quadrants; quadrant N fills once the user reaches
+  // week N. pathLength=100 makes each quadrant 25 units; GAP separates them.
+  const GAP = 4;
+  const SEG = 25 - GAP;
+  const rings = Array.from({ length: 4 }, (_, index) => {
     const week = index + 1;
+    const filled = week <= currentWeek;
     const state = week < currentWeek ? 'completed' : week === currentWeek ? 'current' : 'planned';
-    const progress = week < currentWeek ? 100 : week === currentWeek ? Math.round(weekProgress * 100) : 0;
-    return `<circle class="cycle-ring__track" cx="88" cy="88" r="${radius}" pathLength="100"></circle>
-      <circle class="cycle-ring__progress cycle-ring__progress--${state}" cx="88" cy="88" r="${radius}"
-        pathLength="100" stroke-dasharray="${progress} ${100 - progress}" data-week="${week}" data-state="${state}"></circle>`;
+    return `<circle class="cycle-quadrant cycle-quadrant--${filled ? 'filled' : 'empty'}" cx="88" cy="88" r="70"
+      pathLength="100" stroke-dasharray="${SEG} ${100 - SEG}" stroke-dashoffset="${-index * 25}"
+      data-week="${week}" data-state="${state}"></circle>`;
   }).join('');
   const description = `Cycle ${cycleNumber}, week ${currentWeek} of 4, ${weekNames[currentWeek - 1]}. Day ${safeDay} of 28.`;
   if (size === 'text') {
@@ -545,9 +547,7 @@ export function renderSymptomCheck(App, userId = 'userB') {
       </div>
       <div class="symptom-clusters" role="group" aria-label="Active symptoms">
         ${SYMPTOM_CLUSTERS.map(s => `
-          <button class="symptom-cluster-btn" data-symptom="${s.id}" aria-pressed="false">
-            <span class="symptom-cluster-btn__icon">${uiGlyph(s.icon)}</span>${s.label}
-          </button>
+          <button class="symptom-cluster-btn" data-symptom="${s.id}" aria-pressed="false">${s.label}</button>
         `).join('')}
       </div>
 
@@ -832,11 +832,18 @@ export function renderWarmup() {
       <div class="eyebrow" style="margin-bottom:8px;">Together</div>
       <h1 class="page-title">Warm-Up</h1>
       <p class="page-subtitle" style="max-width:320px;margin:8px auto 0;">
-        Five minutes together — sun salutations or gentle stretching,
+        A few minutes together — sun salutations or gentle stretching,
         whatever feels right this morning.
       </p>
       <div class="meditation-orb">${uiGlyph('breath')}</div>
       <div id="warmup-start-wrap" style="text-align:center;">
+        <div class="warmup-length">
+          <label for="warmup-minutes" class="input-label" style="display:block;margin-bottom:10px;">
+            Warm-up length: <strong id="warmup-minutes-label" style="color:var(--text);">5 min</strong>
+          </label>
+          <input type="range" class="slider" id="warmup-minutes" min="5" max="15" step="1" value="5"
+                 aria-label="Warm-up length in minutes">
+        </div>
         <button class="btn btn--primary" id="btn-warmup-begin" style="min-width:200px;">Begin Warm-Up</button>
         <div style="margin-top:12px;">
           <button class="btn btn--ghost btn--sm" id="btn-warmup-skip">Skip warm-up</button>
