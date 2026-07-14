@@ -1841,6 +1841,9 @@ export function renderSettings(App) {
           health-data tracking. Everything stays on your device. Easy to carry,
           easy to adapt.
         </p>
+        <p class="about-card__credit">
+          Designed by <a href="https://github.com/Eli-Studio" target="_blank" rel="noopener noreferrer">Eli-Studio</a>
+        </p>
         <p class="about-card__meta">Movement Practice · v${APP_VERSION}</p>
       </div>
     </div>

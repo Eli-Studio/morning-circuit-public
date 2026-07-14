@@ -39,6 +39,8 @@ test('reports and settings screens render from the nav', async ({ page }) => {
 
   await page.locator('[data-nav="settings"]').click();
   await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Eli-Studio' }))
+    .toHaveAttribute('href', 'https://github.com/Eli-Studio');
   await page.screenshot({ path: `${SHOTS}/settings.png`, fullPage: true });
 });
 

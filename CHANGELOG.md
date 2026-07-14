@@ -5,6 +5,18 @@ All notable changes to Movement Practice are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- A short origin story explaining the two-person, capacity-adaptive product constraints.
+- Reproducible current-version README screenshots with deterministic fictional sample data.
+- A generated 1200×630 social preview plus Open Graph, Twitter card, canonical URL, and page-description metadata.
+- A fixed GitHub author link in the in-app About card.
+
+### Changed
+- Replaced the README's implementation badge with the Release Checks workflow status.
+- Updated architecture, testing, and roadmap documentation for the current public demo.
+
 ## [0.6.1] — 2026-07-13
 
 ### Fixed
@@ -56,5 +68,6 @@ Initial public demo.
   visible focus indicators, and reduced-motion support.
 - Dependency-free automated release checks in pull requests and before deploys.
 
+[Unreleased]: https://github.com/Eli-Studio/movement-practice/compare/v0.6.1...HEAD
 [0.6.1]: https://github.com/Eli-Studio/movement-practice/releases/tag/v0.6.1
 [0.6.0]: https://github.com/Eli-Studio/movement-practice/releases/tag/v0.6.0

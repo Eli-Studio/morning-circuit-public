@@ -3,7 +3,7 @@
 A tour of how Movement Practice is put together. The app is a single-page,
 offline-first PWA written in vanilla ES modules — no framework, no build step,
 one vendored chart library. This document is the map a reviewer needs to move
-through ~8.7k lines quickly.
+through ~9k lines quickly.
 
 ## The big picture
 
@@ -94,8 +94,11 @@ third-party network requests.
   gate: JS syntax, the exercise/routine/equipment reference graph, version
   alignment, backup-migration round-trip, and CSV formula-injection safety.
 - [`tests/e2e/`](tests/e2e) — **dev-only** Playwright behavioral tests (onboarding,
-  navigation, backup download, and a WCAG-AA contrast regression guard), driven
-  through the zero-dep static server in [`scripts/serve.mjs`](scripts/serve.mjs).
+  navigation, backup download, cycle-graphic variants, and a WCAG-AA contrast
+  regression guard), driven through the zero-dep static server in
+  [`scripts/serve.mjs`](scripts/serve.mjs).
+- [`scripts/capture-screenshots.mjs`](scripts/capture-screenshots.mjs) — regenerates
+  the curated README gallery and social preview from a clean, deterministic app session.
 
 ## Module reference
 

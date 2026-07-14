@@ -1,7 +1,7 @@
 {
   "name": "Movement",
   "short_name": "Movement",
-  "description": "A private-by-default, device-local movement practice tracker.",
+  "description": "A private, offline-capable movement tracker that adapts each day's workout to your reported capacity.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

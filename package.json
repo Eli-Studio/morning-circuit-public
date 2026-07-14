@@ -6,7 +6,8 @@
   "scripts": {
     "test": "node scripts/release-check.mjs",
     "serve": "node scripts/serve.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "screenshots": "node scripts/capture-screenshots.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1"

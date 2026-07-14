@@ -672,6 +672,8 @@ body {
 .about-card__blurb {
   color: var(--text-2); font-size: 0.86rem; line-height: 1.6; margin-bottom: 14px;
 }
+.about-card__credit { margin-bottom: 12px; color: var(--text-2); font-size: .78rem; }
+.about-card__credit a { color: var(--action-primary-strong); text-underline-offset: 3px; }
 .about-card__links { display: flex; flex-wrap: wrap; gap: 8px; }
 .about-card__links .btn { text-decoration: none; }
 .about-card__meta {

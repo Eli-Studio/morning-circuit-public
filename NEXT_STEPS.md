@@ -1,10 +1,9 @@
-# Release Checkpoint
+# Roadmap and Release Checkpoint
 
-Version 0.6.0 is the finished public demo candidate. The current branch is
-functional, deployable, and manually verified across phone, tablet, and desktop
-viewports.
+Version 0.6.1 is the current public demo. The main branch is functional,
+deployable, and verified across phone, tablet, and desktop viewports.
 
-## Completed for 0.6.0
+## Completed through 0.6.1
 
 - One- or two-profile onboarding with an optional guided first workout.
 - Daily capacity choices with transparent defaults.
@@ -28,15 +27,16 @@ viewports.
 4. On the deployed HTTPS URL, smoke-test fresh onboarding, one short workout,
    resume/discard, backup restore, second-profile controls, paired phone layout,
    install, and offline reload.
-5. Tag the verified commit as `v0.6.0`.
+5. Tag the verified commit with the next semantic version.
 
-## Added since 0.6.0
+## Portfolio and release tooling
 
 - MIT license ([LICENSE](LICENSE)).
 - Playwright behavioral smoke tests ([tests/e2e/](tests/e2e)) covering onboarding,
   navigation, backup export, and a WCAG-AA contrast regression guard, wired into CI.
 - Zero-dependency local static server (`npm run serve`).
 - Architecture overview ([ARCHITECTURE.md](ARCHITECTURE.md)).
+- Reproducible README screenshots and social preview (`npm run screenshots`).
 
 ## Intentionally deferred beyond the demo
 
