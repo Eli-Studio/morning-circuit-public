@@ -569,16 +569,15 @@ body {
 }
 .four-week-cycle__graphic { position: relative; width: 176px; flex: 0 0 176px; aspect-ratio: 1; }
 .cycle-rings { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
-.cycle-ring__track,
-.cycle-ring__progress { fill: none; vector-effect: non-scaling-stroke; }
-.cycle-ring__track { stroke: var(--cycle-planned); stroke-width: 1.15; stroke-dasharray: .8 3.2; }
-.cycle-ring__progress {
+/* One ring split into four quadrants — one per cycle week. Quadrants fill
+   (yellow) as the user advances through weeks 1–4. */
+.cycle-quadrant {
+  fill: none; vector-effect: non-scaling-stroke;
   stroke-width: var(--cycle-ring-width-large); stroke-linecap: round;
-  transition: stroke-dasharray 450ms ease, stroke 250ms ease;
+  transition: stroke 250ms ease;
 }
-.cycle-ring__progress--completed { stroke: var(--cycle-completed); }
-.cycle-ring__progress--current { stroke: var(--cycle-current); }
-.cycle-ring__progress--planned { stroke: transparent; }
+.cycle-quadrant--filled { stroke: var(--cycle-current); }
+.cycle-quadrant--empty { stroke: var(--cycle-planned); }
 .four-week-cycle__center {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; text-align: center;
@@ -599,8 +598,7 @@ body {
 }
 .four-week-cycle--compact .four-week-cycle__graphic { width: 48px; flex-basis: 48px; }
 .four-week-cycle--compact .four-week-cycle__copy { display: none; }
-.four-week-cycle--compact .cycle-ring__track { stroke-width: .8; }
-.four-week-cycle--compact .cycle-ring__progress { stroke-width: var(--cycle-ring-width-compact); }
+.four-week-cycle--compact .cycle-quadrant { stroke-width: var(--cycle-ring-width-compact); }
 .four-week-cycle--compact .four-week-cycle__center span { display: none; }
 .four-week-cycle--compact .four-week-cycle__center strong { margin: 0; font-size: .72rem; }
 .four-week-cycle--compact .four-week-cycle__center small { display: none; }
@@ -832,7 +830,7 @@ textarea.input { height: auto; min-height: 80px; padding: 12px 16px; resize: ver
 .pain-picker { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: var(--gap); }
 
 .pain-btn {
-  display: flex; flex-direction: column; align-items: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 6px; padding: 14px 8px; border-radius: var(--radius);
   border: 2px solid var(--border); background: var(--surface-2);
   cursor: pointer; font-family: var(--font);
@@ -864,9 +862,17 @@ textarea.input { height: auto; min-height: 80px; padding: 12px 16px; resize: ver
   -webkit-tap-highlight-color: transparent;
 }
 .symptom-cluster-btn.active {
-  border-color: var(--profile-b-accent); color: var(--profile-b-accent);
-  background: var(--profile-b-glow);
+  border-color: var(--status-caution); color: var(--status-caution);
+  background: color-mix(in srgb, var(--status-caution) 10%, var(--surface-2));
 }
+
+/* Range slider (warm-up length, etc.). accent-color themes track + thumb. */
+.slider {
+  width: min(100%, 280px); height: 28px; cursor: pointer;
+  accent-color: var(--movement-brass-500);
+  -webkit-tap-highlight-color: transparent;
+}
+.warmup-length { margin-bottom: 20px; }
 
 /* --- Workout Screen (Single User) ------------------------ */
 .workout-screen {

@@ -66,14 +66,14 @@ export const JOINT_PAIN_LOCATIONS = [
 // reports resolver also matches snake_case variants in stored data (e.g.
 // "joint_pain" resolves to "jointPain"), so historical logs stay readable.
 export const USERB_SYMPTOMS = [
-  { id: 'dizziness',          icon: 'spiral', label: 'Dizziness'        },
-  { id: 'jointPain',          icon: 'joint', label: 'Joint Pain'       },
-  { id: 'muscleAche',         icon: 'tension', label: 'Muscle Ache'    },
-  { id: 'fatigue',            icon: 'rest', label: 'Fatigue'           },
-  { id: 'headache',           icon: 'head', label: 'Headache'          },
-  { id: 'brainFog',           icon: 'fog', label: 'Brain Fog'          },
-  { id: 'nausea',             icon: 'wave', label: 'Nausea'            },
-  { id: 'sensitivityToLight', icon: 'light', label: 'Light Sensitivity'}
+  { id: 'dizziness',          label: 'Dizziness'        },
+  { id: 'jointPain',          label: 'Joint Pain'       },
+  { id: 'muscleAche',         label: 'Muscle Ache'      },
+  { id: 'fatigue',            label: 'Fatigue'          },
+  { id: 'headache',           label: 'Headache'         },
+  { id: 'brainFog',           label: 'Brain Fog'        },
+  { id: 'nausea',             label: 'Nausea'           },
+  { id: 'sensitivityToLight', label: 'Light Sensitivity'}
 ];
 
 export const HIGH_SYMPTOM_THRESHOLD = 4;
