@@ -55,7 +55,7 @@ function isValidWorkoutDraft(draft) {
 
 export function getDefaultState() {
   return {
-    version: '0.6.0',
+    version: '0.6.1',
     settings: {
       launchDate:         null,
       currentCycleStart:  null,

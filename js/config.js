@@ -2,7 +2,7 @@
 // config.js — App constants and configuration
 // ============================================================
 
-export const APP_VERSION = '0.6.0';
+export const APP_VERSION = '0.6.1';
 // Current localStorage key. Older builds shipped under the 'morningCircuit'
 // project codename; loadState() migrates those saves forward (see
 // LEGACY_STORAGE_KEYS) so no history is stranded by the rename.
